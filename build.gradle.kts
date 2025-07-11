@@ -23,9 +23,9 @@ kotlin {
     sourceSets {
         commonMain {
             dependencies {
-                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
-                implementation("com.squareup.okio:okio:3.15.0")
-                implementation("io.arrow-kt:arrow-core:2.1.0")
+                libs.kotlinxSerializationJson
+                libs.okio
+                libs.arrowCore
             }
         }
     }
