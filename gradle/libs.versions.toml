@@ -1,13 +1,15 @@
 [versions]
-kotlin = "2.1.0"
+kotlin = "2.2.0"
 kotlinxSerialization = "1.8.0"
 okioVersion = "3.15.0"
 arrowKtVersion = "2.1.0"
+cliktVersion = "5.0.3"
 
 [libraries]
-kotlinxSerializationJson = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 okio = { module = "com.squareup.okio:okio", version.ref = "okioVersion" }
-arrowCore = { module = "io.arrow-kt:arrow-core", version.ref = "arrowKtVersion" }
+arrow-core = { module = "io.arrow-kt:arrow-core", version.ref = "arrowKtVersion" }
+clikt = { module = "com.github.ajalt.clikt:clikt", version.ref = "cliktVersion" }
 
 [plugins]
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }

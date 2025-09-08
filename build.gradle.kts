@@ -3,7 +3,7 @@ plugins {
     alias(libs.plugins.kotlinxSerialization)
 }
 
-group = "me.user"
+group = "br.com.ghfreitas"
 version = "1.0-SNAPSHOT"
 
 repositories {
@@ -11,21 +11,50 @@ repositories {
 }
 
 kotlin {
-    listOf(
-        linuxArm64("linuxNative"),
+    val nativeTargets = listOf(
+//        linuxArm64("linuxNative"),
         linuxX64("linuxNativeX64"),
-        mingwX64("windowsNative")
-    ).forEach { target ->
+//        mingwX64("windowsNative")
+    )
+
+    nativeTargets.forEach { target ->
         target.binaries {
-            executable()
+            if (target.name.startsWith("linux")) {
+                executable {
+                    entryPoint = "main"
+                    linkerOpts.add("-Wl,--as-needed")
+                    linkerOpts.add("--allow-multiple-definition")
+                }
+                getTest(DEBUG).apply {
+                    linkerOpts.add("-Wl,--as-needed")
+                }
+            } else {
+                executable {
+                    entryPoint = "main"
+                }
+            }
         }
+
     }
     sourceSets {
         commonMain {
             dependencies {
-                libs.kotlinxSerializationJson
-                libs.okio
-                libs.arrowCore
+                implementation(libs.kotlinx.serialization.json)
+                implementation(libs.okio)
+                implementation(libs.arrow.core)
+                implementation(libs.clikt)
+            }
+        }
+
+        sourceSets.all {
+            languageSettings {
+                optIn("kotlin.time.ExperimentalTime")
+                optIn("kotlin.ExperimentalStdlibApi")
+                optIn("kotlinx.serialization.ExperimentalSerializationApi")
+                optIn("arrow.core.raise.ExperimentalRaiseAccumulateApi")
+            }
+            compilerOptions {
+                freeCompilerArgs.add("-Xcontext-parameters")
             }
         }
     }
