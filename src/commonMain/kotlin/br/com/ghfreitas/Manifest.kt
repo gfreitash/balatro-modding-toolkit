@@ -10,6 +10,7 @@ data class DiscoveredManifest(
     val metadata: BalatroModMetadata
 )
 
+context(filesystem: FileSystem)
 fun discoverManifests(
     rootPath: Path,
     respectGitignore: Boolean = true,
@@ -18,7 +19,7 @@ fun discoverManifests(
     val gitignore = if (respectGitignore) parseGitignore(rootPath) else emptySet()
     val allIgnores = gitignore + additionalIgnores + setOf(".git", ".bmt.json")
 
-    return FileSystem.SYSTEM.listRecursively(rootPath).filter {
+    return filesystem.listRecursively(rootPath).filter {
         it.name.endsWith(".json") && !it.name.endsWith(".bmt.json")
     }.filterNot { path ->
         println("Found: ${path.name}")
@@ -32,13 +33,14 @@ fun discoverManifests(
     }.toList()
 }
 
-private fun tryParseAsBalatroManifest(jsonPath: Path): BalatroModMetadata? {
+context(filesystem: FileSystem)
+fun tryParseAsBalatroManifest(jsonPath: Path): BalatroModMetadata? {
     return try {
-        val content = FileSystem.SYSTEM.read(jsonPath) { readUtf8() }
+        val content = filesystem.read(jsonPath) { readUtf8() }
         val metadata = Json.decodeFromString<BalatroModMetadata>(content)
 
         metadata.validate().fold(
-            { null }, // Invalid manifest
+            { null.also { println("Invalid") } }, // Invalid manifest
             { metadata } // Valid manifest
         )
     } catch (e: Exception) {
@@ -47,11 +49,12 @@ private fun tryParseAsBalatroManifest(jsonPath: Path): BalatroModMetadata? {
     }
 }
 
+context(filesystem: FileSystem)
 fun parseGitignore(rootPath: Path): Set<String> {
     val gitignorePath = rootPath.resolve(".gitignore")
-    if (!FileSystem.SYSTEM.exists(gitignorePath)) return emptySet()
+    if (!filesystem.exists(gitignorePath)) return emptySet()
 
-    return FileSystem.SYSTEM.read(gitignorePath) {
+    return filesystem.read(gitignorePath) {
         readLines()
             .filter { it.isNotBlank() && !it.startsWith("#") }
             .map { it.trim() }
@@ -59,7 +62,7 @@ fun parseGitignore(rootPath: Path): Set<String> {
     }
 }
 
-private fun Path.matchesGlob(pattern: String): Boolean {
+fun Path.matchesGlob(pattern: String): Boolean {
     // Simple glob matching - you might want a more sophisticated implementation
     val regex = pattern
         .replace(".", "\\.")

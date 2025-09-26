@@ -11,7 +11,7 @@ import arrow.core.raise.either
 import arrow.core.recover
 import kotlin.contracts.ExperimentalContracts
 
-class ValidationError(val message: String)
+value class ValidationError(val message: String)
 
 interface Validatable {
     fun validate(): EitherNel<ValidationError, Unit>

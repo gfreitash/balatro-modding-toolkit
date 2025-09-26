@@ -94,12 +94,13 @@ class FindManifestsCommand : CliktCommand(name = "find-mods") {
 
     override fun run() {
         val project = BMTProject.load() ?: error("Not in a BMT project. Run 'bmt-cli init' first.")
-
-        val discoveredManifests = discoverManifests(
-            rootPath = project.rootPath.toPath(),
-            respectGitignore = !noGitignore,
-            additionalIgnores = ignore.toSet()
-        )
+        val discoveredManifests = with(FileSystem.SYSTEM) {
+            discoverManifests(
+                rootPath = project.rootPath.toPath(),
+                respectGitignore = !noGitignore,
+                additionalIgnores = ignore.toSet()
+            )
+        }
 
         val newMods = discoveredManifests.filterNot { manifest ->
             project.discoveredMods.any { it.manifestPath == manifest.path.toString() }
@@ -141,7 +142,9 @@ class Entrypoint : CliktCommand() {
     override fun run() = Unit
 }
 
-fun main(args: Array<String>) = Entrypoint().subcommands(
-    InitCommand(),
-    FindManifestsCommand()
-).main(args)
+fun main(args: Array<String>) {
+    Entrypoint().subcommands(
+        InitCommand(),
+        FindManifestsCommand()
+    ).main(args)
+}
