@@ -51,9 +51,11 @@ kotlin {
         commonMain {
             dependencies {
                 implementation(libs.kotlinx.serialization.json)
+                implementation(libs.kotlinx.coroutines.core)
                 implementation(libs.okio)
                 implementation(libs.arrow.core)
                 implementation(libs.clikt)
+                implementation(libs.kermit)
             }
         }
         commonTest {

@@ -1,9 +1,22 @@
 package br.com.ghfreitas
 
 import br.com.ghfreitas.dto.BalatroModMetadata
+import co.touchlab.kermit.Logger
+import co.touchlab.kermit.Severity
+import co.touchlab.kermit.loggerConfigInit
+import co.touchlab.kermit.platformLogWriter
 import kotlinx.serialization.json.Json
 import okio.FileSystem
 import okio.Path
+
+private const val TAG = "Manifest"
+val log = Logger(
+    config = loggerConfigInit(
+        platformLogWriter(),
+        minSeverity = Severity.Info
+    ),
+    tag=TAG
+)
 
 data class DiscoveredManifest(
     val path: Path,
@@ -30,7 +43,7 @@ fun discoverManifests(
     return filesystem.listRecursively(rootPath).filter {
         it.name.endsWith(".json") && !it.name.endsWith(".bmt.json")
     }.filterNot { path ->
-        println("Found: ${path.name}")
+        log.d { "Found: ${path.name}" }
         allIgnores.any { ignore ->
             path.toString().contains(ignore) || path.matchesGlob(ignore)
         }
@@ -60,11 +73,11 @@ fun tryParseAsBalatroManifest(jsonPath: Path, strict: Boolean = true): BalatroMo
         val metadata = Json.decodeFromString<BalatroModMetadata>(content)
 
         metadata.validate().fold(
-            { if (strict) null  else metadata }, // Invalid manifest
+            { if (strict) null else metadata }, // Invalid manifest
             { metadata } // Valid manifest
         )
     } catch (e: Exception) {
-        println("Failed: $jsonPath\n${e.message}")
+        log.v { "Failed: $jsonPath\n${e.message}" }
         null
     }
 }

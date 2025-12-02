@@ -24,16 +24,20 @@ data class BMTProject(
     val discoveredMods: List<DiscoveredMod> = emptyList(),
     val lastScanMilliseconds: Long = 0L
 ) {
+
     companion object {
         const val FILE = ".bmt.json"
+
+        context(_: FileSystem)
         fun load(): BMTProject? = runCatching {
             PrettyJson.decodeFromString<BMTProject>(FILE.toPath().readAsString())
         }.getOrElse { return null }
 
+        context(fileSystem: FileSystem)
         fun exists(): Boolean? {
             val path = FILE.toPath()
 
-            val fileExists = FileSystem.SYSTEM.exists(path)
+            val fileExists = fileSystem.exists(path)
             if (!fileExists) return false
 
 
@@ -47,8 +51,9 @@ data class BMTProject(
         }
     }
 
+    context(fileSystem: FileSystem)
     fun save() {
-        FileSystem.SYSTEM.write(FILE.toPath()) { writeUtf8(PrettyJson.encodeToString (this@BMTProject)) }
+        fileSystem.write(FILE.toPath()) { writeUtf8(PrettyJson.encodeToString(this@BMTProject)) }
     }
 }
 
@@ -64,7 +69,7 @@ data class DiscoveredMod(
 class InitCommand : CliktCommand(name = "init") {
     override fun help(context: Context): String = "Initializes a BMT project in the current directory."
 
-    override fun run() {
+    override fun run() = with(FileSystem.SYSTEM) {
         val exists = BMTProject.exists()
         if (exists == null) {
             echo("It was not possible to read the BMT project file. The file might be corrupted or this might be a transient failure")
@@ -92,15 +97,13 @@ class FindManifestsCommand : CliktCommand(name = "find-mods") {
     override fun help(context: Context): String =
         "Finds all mod manifests under the current directory and adds them to the BMT project."
 
-    override fun run() {
+    override fun run() = with(FileSystem.SYSTEM) {
         val project = BMTProject.load() ?: error("Not in a BMT project. Run 'bmt-cli init' first.")
-        val discoveredManifests = with(FileSystem.SYSTEM) {
-            discoverManifests(
-                rootPath = project.rootPath.toPath(),
-                respectGitignore = !noGitignore,
-                additionalIgnores = ignore.toSet()
-            )
-        }
+        val discoveredManifests = discoverManifests(
+            rootPath = project.rootPath.toPath(),
+            respectGitignore = !noGitignore,
+            additionalIgnores = ignore.toSet()
+        )
 
         val newMods = discoveredManifests.filterNot { manifest ->
             project.discoveredMods.any { it.manifestPath == manifest.path.toString() }

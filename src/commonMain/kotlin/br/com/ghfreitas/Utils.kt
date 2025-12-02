@@ -7,11 +7,15 @@ import okio.Path
 import okio.Path.Companion.toPath
 
 @Throws(IOException::class)
-fun Path.readAsString(): String = FileSystem.SYSTEM.read(this) {
+context(filesystem: FileSystem)
+fun Path.readAsString(): String = filesystem.read(this) {
     return readUtf8()
 }
 
-fun Path.toAbsolutePath(): Path = FileSystem.SYSTEM.canonicalize(this)
+context(filesystem: FileSystem)
+fun Path.toAbsolutePath(): Path = filesystem.canonicalize(this)
+
+context(filesystem: FileSystem)
 fun FileSystem.Companion.cwd(): Path = ".".toPath().toAbsolutePath()
 
 fun BufferedSource.readLines(): Sequence<String> = sequence {
@@ -19,3 +23,6 @@ fun BufferedSource.readLines(): Sequence<String> = sequence {
         yield(readUtf8Line() ?: break)
     }
 }
+
+context(filesystem: FileSystem)
+fun Path.readLines(): Sequence<String> = filesystem.read(this) { readLines() }
