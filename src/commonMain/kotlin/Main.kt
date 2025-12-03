@@ -1,6 +1,7 @@
 import br.com.ghfreitas.cwd
 import br.com.ghfreitas.discoverManifests
 import br.com.ghfreitas.readAsString
+import br.com.ghfreitas.writeToFile
 import com.github.ajalt.clikt.core.*
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.help
@@ -97,7 +98,7 @@ data class BMTProject(
 
     context(fileSystem: FileSystem)
     fun save() {
-        fileSystem.write(FILE.toPath()) { writeUtf8(PrettyJson.encodeToString(this@BMTProject)) }
+        FILE.toPath().writeToFile(PrettyJson.encodeToString(this@BMTProject))
     }
 }
 

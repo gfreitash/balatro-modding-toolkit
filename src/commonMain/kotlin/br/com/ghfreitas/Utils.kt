@@ -26,3 +26,6 @@ fun BufferedSource.readLines(): Sequence<String> = sequence {
 
 context(filesystem: FileSystem)
 fun Path.readLines(): Sequence<String> = filesystem.read(this) { readLines() }
+
+context(filesystem: FileSystem)
+fun Path.writeToFile(content: String) = filesystem.write(this) { writeUtf8(content) }

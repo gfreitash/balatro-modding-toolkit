@@ -12,13 +12,26 @@ import kotlin.test.assertTrue
 class UtilsTest {
 
     @Test
+    fun writeToFile_writes_content_to_file() {
+        val fs = FakeFileSystem()
+        val testFile = "/test/file.txt".toPath()
+        fs.createDirectories(testFile.parent!!)
+
+        val content = "Hello, World!\nThis is a test file."
+        with(fs) { testFile.writeToFile(content) }
+
+        val readContent = fs.read(testFile) { readUtf8() }
+        assertEquals(content, readContent)
+    }
+
+    @Test
     fun readAsString_reads_file_content() {
         val fs = FakeFileSystem()
         val testFile = "/test/file.txt".toPath()
         fs.createDirectories(testFile.parent!!)
 
         val content = "Hello, World!\nThis is a test file."
-        fs.write(testFile) { writeUtf8(content) }
+        with(fs) { testFile.writeToFile(content) }
 
         val readContent = with(fs) { testFile.readAsString() }
 
@@ -41,7 +54,7 @@ class UtilsTest {
         val emptyFile = "/test/empty.txt".toPath()
         fs.createDirectories(emptyFile.parent!!)
 
-        fs.write(emptyFile) { writeUtf8("") }
+        with(fs) { emptyFile.writeToFile("") }
 
         val content = with(fs) { emptyFile.readAsString() }
         assertEquals("", content)
@@ -54,7 +67,7 @@ class UtilsTest {
         fs.createDirectories(utf8File.parent!!)
 
         val utf8Content = "Héllo, Wørld! 🌍 测试 тест"
-        fs.write(utf8File) { writeUtf8(utf8Content) }
+        with(fs) { utf8File.writeToFile(utf8Content) }
 
         val readContent = with(fs) { utf8File.readAsString() }
         assertEquals(utf8Content, readContent)
@@ -72,12 +85,8 @@ class UtilsTest {
         val fourthLine = ""
 
         val lines = listOf(firstLine, secondLine, thirdLine, fourthLine)
-        fs.write(testFile) {
-            lines.forEach { line ->
-                writeUtf8(line)
-                writeUtf8("\n")
-            }
-        }
+        val content = lines.joinToString("\n") + "\n"
+        with(fs) { testFile.writeToFile(content) }
 
         val readLines = fs.read(testFile) { readLines().toList() }
 
@@ -94,7 +103,7 @@ class UtilsTest {
         val emptyFile = "/test/empty.txt".toPath()
         fs.createDirectories(emptyFile.parent!!)
 
-        fs.write(emptyFile) { writeUtf8("") }
+        with(fs) { emptyFile.writeToFile("") }
 
         val lines = fs.read(emptyFile) { readLines().toList() }
 
@@ -107,7 +116,7 @@ class UtilsTest {
         val testFile = "/test/single.txt".toPath()
         fs.createDirectories(testFile.parent!!)
 
-        fs.write(testFile) { writeUtf8("Single line without newline") }
+        with(fs) { testFile.writeToFile("Single line without newline") }
 
         val lines = fs.read(testFile) { readLines().toList() }
 
@@ -127,7 +136,7 @@ class UtilsTest {
 
         // Windows line endings (\r\n)
         val content = "$firstLine\r\n$secondLine\r\n$thirdLine"
-        fs.write(testFile) { writeUtf8(content) }
+        with(fs) { testFile.writeToFile(content) }
 
         val lines = fs.read(testFile) { readLines().toList() }
 
@@ -145,7 +154,7 @@ class UtilsTest {
 
         fs.workingDirectory = testDir
         val testFile = "./test.txt".toPath()
-        fs.write(testFile) { writeUtf8("test file") }
+        with(fs) { testFile.writeToFile("test file") }
 
         val expectedAbsPath = "/test/nested/path/test.txt"
         val absPath = with(fs) { testFile.toAbsolutePath() }

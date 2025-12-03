@@ -58,7 +58,7 @@ class BMTProjectTest {
           "lastScanMilliseconds" : 1234567890
         }
         """.trimIndent()
-        fs.write(bmtFile) { writeUtf8(projectJson) }
+        with(fs) { bmtFile.writeToFile(projectJson) }
 
         val project = with(fs) { BMTProject.load() }
 
@@ -72,7 +72,7 @@ class BMTProjectTest {
 
     @Test
     fun load_returns_null_for_invalid_json() {
-        fs.write(bmtFile) { writeUtf8("{ invalid json }") }
+        with(fs) { bmtFile.writeToFile("{ invalid json }") }
         val project = with(fs) { BMTProject.load() }
 
         assertNull(project)

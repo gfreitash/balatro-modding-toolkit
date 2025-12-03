@@ -31,7 +31,7 @@ class ManifestDiscoveryTest {
         val root = "/project".toPath()
         fs.createDirectories(root)
 
-        fs.write(root / ".gitignore") { writeUtf8("") }
+        with(fs) { (root / ".gitignore").writeToFile("") }
         val patterns = with(fs) { parseGitignore(root) }
 
         assertTrue(patterns.isEmpty())
@@ -54,7 +54,7 @@ class ManifestDiscoveryTest {
             node_modules
         """.trimIndent()
 
-        fs.write(root / ".gitignore") { writeUtf8(gitignoreContent) }
+        with(fs) { (root / ".gitignore").writeToFile(gitignoreContent) }
 
         // Use original parseGitignore function with FileSystem context
         val patterns = with(fs) {
@@ -111,9 +111,7 @@ class ManifestDiscoveryTest {
         fs.createDirectories(manifestPath.parent!!)
 
         val validManifest = validMetadata()
-        fs.write(manifestPath) {
-            writeUtf8(Json.encodeToString(validManifest))
-        }
+        with(fs) { manifestPath.writeToFile(Json.encodeToString(validManifest)) }
 
         val metadata = with(fs) {
             tryParseAsBalatroManifest(manifestPath)
@@ -130,7 +128,7 @@ class ManifestDiscoveryTest {
         val manifestPath = "/test/invalid.json".toPath()
         fs.createDirectories(manifestPath.parent!!)
 
-        fs.write(manifestPath) { writeUtf8("{ invalid json }") }
+        with(fs) { manifestPath.writeToFile("{ invalid json }") }
 
         // Use original tryParseAsBalatroManifest function with FileSystem context
         val result = with(fs) {
@@ -153,7 +151,7 @@ class ManifestDiscoveryTest {
         }
         """.trimIndent()
 
-        fs.write(manifestPath) { writeUtf8(invalidJson) }
+        with(fs) { manifestPath.writeToFile(invalidJson) }
 
         val result = with(fs) {
             tryParseAsBalatroManifest(manifestPath)
@@ -169,7 +167,7 @@ class ManifestDiscoveryTest {
         fs.createDirectories(manifestPath.parent!!)
 
         val invalidMetadata = validMetadata().copy(id = ModId(""))
-        fs.write(manifestPath) { writeUtf8(Json.encodeToString(invalidMetadata)) }
+        with(fs) { manifestPath.writeToFile(Json.encodeToString(invalidMetadata)) }
 
         val result = with(fs) {
             tryParseAsBalatroManifest(manifestPath)
@@ -185,7 +183,7 @@ class ManifestDiscoveryTest {
         fs.createDirectories(manifestPath.parent!!)
 
         val invalidMetadata = validMetadata().copy(id = ModId(""))
-        fs.write(manifestPath) { writeUtf8(Json.encodeToString(invalidMetadata)) }
+        with(fs) { manifestPath.writeToFile(Json.encodeToString(invalidMetadata)) }
 
         val result = with(fs) {
             tryParseAsBalatroManifest(manifestPath, strict = false)
@@ -204,8 +202,8 @@ class ManifestDiscoveryTest {
         // Create valid manifests
         val mod1Path = root / "mods" / "awesome_mod" / "manifest.json"
         fs.createDirectories(mod1Path.parent!!)
-        fs.write(mod1Path) {
-            writeUtf8(
+        with(fs) {
+            mod1Path.writeToFile(
                 Json.encodeToString(
                     validMetadata().copy(
                         id = ModId("awesome_mod"),
@@ -217,8 +215,8 @@ class ManifestDiscoveryTest {
 
         val mod2Path = root / "plugins" / "helper_mod" / "manifest.json"
         fs.createDirectories(mod2Path.parent!!)
-        fs.write(mod2Path) {
-            writeUtf8(
+        with(fs) {
+            mod2Path.writeToFile(
                 Json.encodeToString(
                     validMetadata().copy(
                         id = ModId("helper_mod"),
@@ -231,13 +229,13 @@ class ManifestDiscoveryTest {
         // Create invalid manifest
         val invalidPath = root / "broken" / "manifest.json"
         fs.createDirectories(invalidPath.parent!!)
-        fs.write(invalidPath) { writeUtf8("{ broken json") }
+        with(fs) { invalidPath.writeToFile("{ broken json") }
 
         // Create ignored manifest
         val ignoredPath = root / "temp" / "manifest.json"
         fs.createDirectories(ignoredPath.parent!!)
-        fs.write(ignoredPath) {
-            writeUtf8(
+        with(fs) {
+            ignoredPath.writeToFile(
                 Json.encodeToString(
                     validMetadata().copy(
                         id = ModId("ignored_mod"),
@@ -248,18 +246,18 @@ class ManifestDiscoveryTest {
         }
 
         // Create gitignore
-        fs.write(root / ".gitignore") {
-            writeUtf8("temp/\n*.log\nnode_modules")
+        with(fs) {
+            (root / ".gitignore").writeToFile("temp/\n*.log\nnode_modules")
         }
 
         // Create BMT project file (should be ignored)
-        fs.write(root / ".bmt.json") {
-            writeUtf8("""{"rootPath": "/project"}""")
+        with(fs) {
+            (root / ".bmt.json").writeToFile("""{"rootPath": "/project"}""")
         }
 
         // Create other JSON files that shouldn't be manifests
-        fs.write(root / "package.json") {
-            writeUtf8("""{"name": "not-a-manifest"}""")
+        with(fs) {
+            (root / "package.json").writeToFile("""{"name": "not-a-manifest"}""")
         }
 
         // Use original discoverManifests function with FileSystem context
@@ -292,14 +290,14 @@ class ManifestDiscoveryTest {
         // Create manifests in various locations
         val allowedPath = root / "allowed" / "manifest.json"
         fs.createDirectories(allowedPath.parent!!)
-        fs.write(allowedPath) {
-            writeUtf8(Json.encodeToString(validMetadata().copy(id = ModId("allowed_mod"))))
+        with(fs) {
+            allowedPath.writeToFile(Json.encodeToString(validMetadata().copy(id = ModId("allowed_mod"))))
         }
 
         val customIgnoredPath = root / "custom_ignored" / "manifest.json"
         fs.createDirectories(customIgnoredPath.parent!!)
-        fs.write(customIgnoredPath) {
-            writeUtf8(Json.encodeToString(validMetadata().copy(id = ModId("custom_ignored_mod"))))
+        with(fs) {
+            customIgnoredPath.writeToFile(Json.encodeToString(validMetadata().copy(id = ModId("custom_ignored_mod"))))
         }
 
         // Use original discoverManifests function with FileSystem context and additional ignores
