@@ -9,8 +9,10 @@ import br.com.ghfreitas.dto.validation.validation
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonIgnoreUnknownKeys
+import kotlin.jvm.JvmInline
 
 @Serializable
+@JvmInline
 value class ModId(val value: String) : Validatable {
     companion object {
         private val DISALLOWED_IDS = setOf("Steamodded", "Lovely", "Balatro")
@@ -28,6 +30,7 @@ value class ModId(val value: String) : Validatable {
 }
 
 @Serializable
+@JvmInline
 value class ModName(val value: String) : Validatable {
     override fun validate(): EitherNel<ValidationError, Unit> = validation {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("ModName cannot be blank") }
@@ -35,6 +38,7 @@ value class ModName(val value: String) : Validatable {
 }
 
 @Serializable
+@JvmInline
 value class ModAuthor(val value: String) : Validatable {
     override fun validate(): EitherNel<ValidationError, Unit> = validation {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("ModAuthor cannot be blank") }
@@ -42,6 +46,7 @@ value class ModAuthor(val value: String) : Validatable {
 }
 
 @Serializable
+@JvmInline
 value class ModDescription(val value: String) : Validatable {
     override fun validate(): EitherNel<ValidationError, Unit> = validation {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("ModDescription cannot be blank") }
@@ -49,6 +54,7 @@ value class ModDescription(val value: String) : Validatable {
 }
 
 @Serializable
+@JvmInline
 value class ModPrefix(val value: String) : Validatable {
     override fun validate(): EitherNel<ValidationError, Unit> = validation {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("ModPrefix cannot be blank") }
@@ -60,6 +66,7 @@ value class ModPrefix(val value: String) : Validatable {
 
 @Serializable
 @SerialName("main_file")
+@JvmInline
 value class MainFile(
     val value: String
 ) : Validatable {
@@ -71,6 +78,7 @@ value class MainFile(
 
 @Serializable
 @SerialName("config_file")
+@JvmInline
 value class ConfigFile(
     val value: String
 ) : Validatable {
@@ -81,11 +89,13 @@ value class ConfigFile(
 }
 
 @Serializable
+@JvmInline
 value class Priority(val value: Int) : Validatable {
     override fun validate(): EitherNel<ValidationError, Unit> = Unit.right()
 }
 
 @Serializable
+@JvmInline
 value class HexColor(val value: String) : Validatable {
     override fun validate(): EitherNel<ValidationError, Unit> = validation {
         ensureOrAccumulate(value.matches("""^[0-9A-Fa-f]{6}$|^[0-9A-Fa-f]{8}$""".toRegex())) {
@@ -96,6 +106,7 @@ value class HexColor(val value: String) : Validatable {
 
 @Serializable
 @SerialName("display_name")
+@JvmInline
 value class DisplayName(val value: String) : Validatable {
     override fun validate(): EitherNel<ValidationError, Unit> = validation {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("DisplayName cannot be blank") }
@@ -104,6 +115,7 @@ value class DisplayName(val value: String) : Validatable {
 }
 
 @Serializable
+@JvmInline
 value class ModVersion(val value: String) : Validatable {
     override fun validate(): EitherNel<ValidationError, Unit> = validation {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("ModVersion cannot be blank") }
@@ -122,6 +134,7 @@ value class ModVersion(val value: String) : Validatable {
 }
 
 @Serializable
+@JvmInline
 value class DependencySpec(val value: String) : Validatable {
     override fun validate(): EitherNel<ValidationError, Unit> = validation {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("DependencySpec cannot be blank") }
@@ -135,6 +148,7 @@ value class DependencySpec(val value: String) : Validatable {
 }
 
 @Serializable
+@JvmInline
 value class ConflictSpec(val value: String) : Validatable {
     override fun validate(): EitherNel<ValidationError, Unit> = validation {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("ConflictSpec cannot be blank") }
@@ -147,6 +161,7 @@ value class ConflictSpec(val value: String) : Validatable {
 }
 
 @Serializable
+@JvmInline
 value class ProvideSpec(val value: String) : Validatable {
     override fun validate(): EitherNel<ValidationError, Unit> = validation {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("ProvideSpec cannot be blank") }

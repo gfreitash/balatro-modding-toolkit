@@ -5,7 +5,9 @@ import br.com.ghfreitas.dto.validation.Validatable
 import br.com.ghfreitas.dto.validation.ValidationError
 import br.com.ghfreitas.dto.validation.gather
 import br.com.ghfreitas.dto.validation.validation
+import kotlin.jvm.JvmInline
 
+@JvmInline
 value class ModTitle(val value: String) : Validatable {
     override fun validate(): EitherNel<ValidationError, Unit> = validation {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("ModTitle cannot be blank") }
@@ -28,6 +30,7 @@ enum class ModCategory(val displayName: String) {
     }
 }
 
+@JvmInline
 value class ModCategories(val values: Set<ModCategory>) : Validatable {
     override fun validate(): EitherNel<ValidationError, Unit> = validation {
         ensureOrAccumulate(values.isNotEmpty()) {
@@ -36,6 +39,7 @@ value class ModCategories(val values: Set<ModCategory>) : Validatable {
     }
 }
 
+@JvmInline
 value class RepoUrl(val value: String) : Validatable {
     override fun validate(): EitherNel<ValidationError, Unit> = validation {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("Repository URL cannot be blank") }
@@ -45,6 +49,7 @@ value class RepoUrl(val value: String) : Validatable {
     }
 }
 
+@JvmInline
 value class DownloadUrl(val value: String) : Validatable {
     override fun validate(): EitherNel<ValidationError, Unit> = validation {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("Download URL cannot be blank") }
@@ -54,6 +59,7 @@ value class DownloadUrl(val value: String) : Validatable {
     }
 }
 
+@JvmInline
 value class FolderName(val value: String) : Validatable {
     companion object {
         private val FORBIDDEN_CHARS = setOf('<', '>', ':', '"', '/', '\\', '|', '?', '*')
@@ -73,12 +79,14 @@ value class FolderName(val value: String) : Validatable {
     }
 }
 
+@JvmInline
 value class IndexModVersion(val value: String) : Validatable {
     override fun validate(): EitherNel<ValidationError, Unit> = validation {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("Version cannot be blank") }
     }
 }
 
+@JvmInline
 value class LastUpdated(val value: ULong) : Validatable {
     override fun validate(): EitherNel<ValidationError, Unit> = validation {}
 }

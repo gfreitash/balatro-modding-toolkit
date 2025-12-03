@@ -45,3 +45,5 @@ bin/
 
 /bmt-cli
 /src/Teste.ipynb
+/.idea/artifacts/
+/.bmt.json

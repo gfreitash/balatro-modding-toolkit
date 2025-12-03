@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.kotlinxSerialization)
     alias(libs.plugins.kotlinPowerAssert)
+    alias(libs.plugins.kover)
 }
 
 group = "br.com.ghfreitas"
@@ -15,7 +16,8 @@ repositories {
 
 @OptIn(ExperimentalKotlinGradlePluginApi::class)
 powerAssert {
-    functions = listOf("kotlin.assert", "kotlin.test.assertTrue", "kotlin.test.assertEquals", "kotlin.test.assertNull")
+    functions = listOf("kotlin.assert", "kotlin.test.assertTrue", "kotlin.test.assertFalse", "kotlin.test.assertEquals", "kotlin.test.assertNull")
+    includedSourceSets = listOf("commonMain", "jvmMain")
 }
 
 kotlin {
@@ -24,6 +26,10 @@ kotlin {
         linuxX64("linuxNativeX64"),
 //        mingwX64("windowsNative")
     )
+
+    jvm {
+        testRuns["test"].executionTask.configure {}
+    }
 
     nativeTargets.forEach { target ->
         target.binaries {

@@ -10,7 +10,9 @@ import arrow.core.raise.accumulate
 import arrow.core.raise.either
 import arrow.core.recover
 import kotlin.contracts.ExperimentalContracts
+import kotlin.jvm.JvmInline
 
+@JvmInline
 value class ValidationError(val message: String)
 
 /**

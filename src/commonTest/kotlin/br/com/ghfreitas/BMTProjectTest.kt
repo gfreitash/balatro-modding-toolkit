@@ -35,11 +35,11 @@ class BMTProjectTest {
             writeUtf8(PrettyJson.encodeToString(project))
         }
 
-        assert(fs.exists(bmtFile) == true)
+        assertTrue(fs.exists(bmtFile))
         val content = fs.read(bmtFile) { readUtf8() }
-        assert(content.contains("\"rootPath\": \"/project\"") == true)
-        assert(content.contains("\"test.mod\"") == true)
-        assert(content.contains("\"included\": true") == true)
+        assertTrue(content.contains("\"rootPath\": \"/project\""))
+        assertTrue(content.contains("\"test.mod\""))
+        assertTrue(content.contains("\"included\": true"))
     }
     
     @Test
