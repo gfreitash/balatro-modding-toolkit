@@ -1,5 +1,6 @@
 package br.com.ghfreitas
 
+import okio.FileSystem
 import okio.IOException
 import okio.Path.Companion.toPath
 import okio.fakefilesystem.FakeFileSystem
@@ -152,5 +153,15 @@ class UtilsTest {
         assertTrue { absPath.isAbsolute }
         assertEquals(absPath.toString(), expectedAbsPath)
 
+    }
+
+    @Test
+    fun cwd_shows_proper_working_directory() {
+        val fs = FakeFileSystem()
+        val testDir = "/test/nested/path".toPath()
+        fs.createDirectories(testDir)
+
+        fs.workingDirectory = testDir
+        assertEquals(fs.workingDirectory.toString(), with(fs) { FileSystem.cwd() }.toString())
     }
 }
