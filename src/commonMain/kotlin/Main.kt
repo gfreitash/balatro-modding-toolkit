@@ -19,6 +19,49 @@ val PrettyJson = Json {
     ignoreUnknownKeys = true
 }
 
+fun CliktCommand.findManifests(noGitignore: Boolean = false, ignore: List<String> = emptyList()) = with(FileSystem.SYSTEM) {
+    val project = BMTProject.load() ?: error("Not in a BMT project. Run 'bmt-cli init' first.")
+    val discoveredManifests = discoverManifests(
+        rootPath = project.rootPath.toPath(),
+        respectGitignore = !noGitignore,
+        additionalIgnores = ignore.toSet()
+    )
+
+    val newMods = discoveredManifests.filterNot { manifest ->
+        project.discoveredMods.any { it.manifestPath == manifest.path.toString() }
+    }
+
+    if (newMods.isEmpty()) {
+        echo("No new mods found")
+        return
+    }
+
+    val updatedMods = project.discoveredMods.toMutableList()
+
+    newMods.forEach { manifest ->
+        echo("Found manifest: ${manifest.path}")
+        val include = terminal.prompt(
+            "Include this mod in the project?",
+            choices = listOf("y", "N"),
+            default = "N"
+        ).let { (it ?: "n").lowercase() == "y" }
+
+
+        updatedMods.add(
+            DiscoveredMod(
+                name = manifest.metadata.id.value,
+                manifestPath = manifest.path.toString(),
+                included = include
+            )
+        )
+    }
+
+    project.copy(
+        discoveredMods = updatedMods,
+        lastScanMilliseconds = Clock.System.now().toEpochMilliseconds()
+    ).save()
+}
+
 @Serializable
 data class BMTProject(
     val rootPath: String = "",
@@ -68,7 +111,10 @@ data class DiscoveredMod(
 
 // bmt-cli init
 class InitCommand : CliktCommand(name = "init") {
-    override fun help(context: Context): String = "Initializes a BMT project in the current directory."
+    private val noGitignore by option("--no-gitignore").flag().help("Disregard .gitignore exclusions")
+    private val ignore by option("--ignore").multiple().help("Additional ignore glob patterns")
+
+    override fun help(context: Context): String = "Initializes a BMT project in the current directory and search for manifests."
 
     override fun run() = with(FileSystem.SYSTEM) {
         val exists = BMTProject.exists()
@@ -78,6 +124,8 @@ class InitCommand : CliktCommand(name = "init") {
         }
         if (exists) {
             echo("BMT project already initialized in ${FileSystem.cwd()}")
+
+            findManifests(noGitignore, ignore)
             return
         }
 
@@ -86,7 +134,7 @@ class InitCommand : CliktCommand(name = "init") {
         echo("Initialized BMT project in ${FileSystem.cwd()}")
 
         // Immediately run discovery
-        FindManifestsCommand().run()
+        findManifests(noGitignore, ignore)
     }
 }
 
@@ -98,48 +146,7 @@ class FindManifestsCommand : CliktCommand(name = "find-mods") {
     override fun help(context: Context): String =
         "Finds all mod manifests under the current directory and adds them to the BMT project."
 
-    override fun run() = with(FileSystem.SYSTEM) {
-        val project = BMTProject.load() ?: error("Not in a BMT project. Run 'bmt-cli init' first.")
-        val discoveredManifests = discoverManifests(
-            rootPath = project.rootPath.toPath(),
-            respectGitignore = !noGitignore,
-            additionalIgnores = ignore.toSet()
-        )
-
-        val newMods = discoveredManifests.filterNot { manifest ->
-            project.discoveredMods.any { it.manifestPath == manifest.path.toString() }
-        }
-
-        if (newMods.isEmpty()) {
-            echo("No new mods found")
-            return
-        }
-
-        val updatedMods = project.discoveredMods.toMutableList()
-
-        newMods.forEach { manifest ->
-            echo("Found manifest: ${manifest.path}")
-            val include = terminal.prompt(
-                "Include this mod in the project?",
-                choices = listOf("y", "N"),
-                default = "N"
-            ).let { (it ?: "n").lowercase() == "y" }
-
-
-            updatedMods.add(
-                DiscoveredMod(
-                    name = manifest.metadata.id.value,
-                    manifestPath = manifest.path.toString(),
-                    included = include
-                )
-            )
-        }
-
-        project.copy(
-            discoveredMods = updatedMods,
-            lastScanMilliseconds = Clock.System.now().toEpochMilliseconds()
-        ).save()
-    }
+    override fun run() = findManifests(noGitignore, ignore)
 }
 
 class Entrypoint : CliktCommand() {
