@@ -251,7 +251,8 @@ data class FileSystemEntry(
  */
 class HierarchicalGitIgnoreParser(
     private val fileSystem: FileSystem = FileSystem.SYSTEM,
-    private val rootPath: Path
+    private val rootPath: Path,
+    private val additionalPatterns: List<String> = emptyList()
 ) {
     private val rootLevel = mutableListOf<GitIgnorePattern>()
     private val levelCache = mutableMapOf<Path, GitIgnoreLevel>()
@@ -259,6 +260,7 @@ class HierarchicalGitIgnoreParser(
     init {
         loadRepositoryExclude()
         loadRootGitignore()
+        loadAdditionalPatterns()
     }
     
     /**
@@ -273,6 +275,24 @@ class HierarchicalGitIgnoreParser(
         }
     }
 
+    /**
+     * Loads and parses programmatically provided additional patterns.
+     * Each pattern string is treated as a line from a `.gitignore` file at the root path.
+     * These patterns have the highest priority and can override patterns from
+     * `.git/info/exclude` and root `.gitignore` files.
+     */
+    private fun loadAdditionalPatterns() {
+        additionalPatterns.forEachIndexed { index, line ->
+            parsePattern(
+                line = line,
+                source = "additionalPatterns",
+                lineNumber = index,
+                baseDirectory = ""
+            )?.let { pattern ->
+                rootLevel.add(pattern)
+            }
+        }
+    }
 
     /**
      * Loads and parses the `.git/info/exclude` file if it exists in the repository,
@@ -333,7 +353,6 @@ class HierarchicalGitIgnoreParser(
      * @return A `GitIgnorePattern` object representing the parsed pattern, or `null` if the line is a comment or invalid.
      */
     private fun parsePattern(line: String, source: String, lineNumber: Int, baseDirectory: String = ""): GitIgnorePattern? {
-        // TODO: Is handling escaping of comments and negations needed?
         var pattern = line
 
         if (pattern.isBlank() || pattern.trimStart().startsWith('#')) {

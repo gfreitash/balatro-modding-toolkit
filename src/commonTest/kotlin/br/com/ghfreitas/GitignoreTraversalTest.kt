@@ -854,4 +854,63 @@ class GitignoreTraversalTest {
         // Cache is cleared, would re-read on next access
         // This mainly tests that clearCache doesn't throw
     }
+
+    @Test
+    fun `additionalPatterns behave identically to gitignore file`() {
+        val patterns = listOf("*.log", "!important.log", "build/", "# comment", "", "*.tmp")
+
+        // Parser A: patterns in root .gitignore file
+        gitignore(*patterns.toTypedArray())
+        val parserA = createParser()
+
+        // Remove .gitignore before creating parserB
+        fs.delete(rootPath / ".gitignore")
+
+        // Parser B: same patterns programmatically via additionalPatterns
+        val parserB = HierarchicalGitIgnoreParser(
+            fs, rootPath,
+            additionalPatterns = patterns
+        )
+
+        // Test files to verify equivalence
+        val testPaths = listOf(
+            "test.log" to false,
+            "important.log" to false,
+            "build/" to true,
+            "app.tmp" to false,
+            "src/debug.log" to false,
+            "src/important.log" to false
+        )
+
+        // Both parsers should produce identical results
+        for ((path, _) in testPaths) {
+            val resultA = parserA.isIgnored(rootPath / path)
+            val resultB = parserB.isIgnored(rootPath / path)
+
+            assertEquals(
+                resultA.isIgnored,
+                resultB.isIgnored,
+                "Parsers should agree on '$path': parserA=${resultA.isIgnored}, parserB=${resultB.isIgnored}"
+            )
+        }
+    }
+
+    @Test
+    fun `additionalPatterns override root gitignore`() {
+        // Root .gitignore: ignore all .log files
+        gitignore("*.log")
+
+        // additionalPatterns: re-include important.log (should override root .gitignore)
+        val parser = HierarchicalGitIgnoreParser(
+            fs, rootPath,
+            additionalPatterns = listOf("!important.log")
+        )
+
+        // important.log should NOT be ignored (additionalPatterns wins due to highest priority)
+        assertNotIgnored(parser, "important.log", isDir = false, "important.log should be re-included by additionalPatterns")
+
+        // Other .log files should still be ignored
+        assertIgnored(parser, "debug.log", isDir = false, "debug.log should still be ignored")
+        assertIgnored(parser, "app.log", isDir = false, "app.log should still be ignored")
+    }
 }
