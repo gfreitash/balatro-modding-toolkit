@@ -18,6 +18,9 @@ fun Path.toAbsolutePath(): Path = filesystem.canonicalize(this)
 context(filesystem: FileSystem)
 fun FileSystem.Companion.cwd(): Path = ".".toPath().toAbsolutePath()
 
+context(filesystem: FileSystem)
+fun FileSystem.writeTo(path: Path, content: () -> String) = filesystem.write(path) { writeUtf8(content()) }
+
 fun BufferedSource.readLines(): Sequence<String> = sequence {
     while (!exhausted()) {
         yield(readUtf8Line() ?: break)

@@ -11,6 +11,7 @@ kover = "0.9.3"
 [libraries]
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
 okio = { module = "com.squareup.okio:okio", version.ref = "okioVersion" }
 okio-fakefs = { module = "com.squareup.okio:okio-fakefilesystem", version.ref = "okioVersion" }
 arrow-core = { module = "io.arrow-kt:arrow-core", version.ref = "arrowKtVersion" }

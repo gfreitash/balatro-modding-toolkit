@@ -68,6 +68,7 @@ kotlin {
             dependencies {
                 implementation(kotlin("test"))
                 implementation(libs.okio.fakefs)
+                implementation(libs.kotlinx.coroutines.test)
             }
         }
 
