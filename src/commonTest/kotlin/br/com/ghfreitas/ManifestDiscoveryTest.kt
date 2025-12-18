@@ -24,85 +24,6 @@ class ManifestDiscoveryTest {
         assertTrue(!metadata.validate().isLeft())
     }
 
-    @Test
-    //TODO: move to dedicated test file after implementing new gitignore parser
-    fun parseGitignore_handles_empty_file() {
-        val fs = FakeFileSystem()
-        val root = "/project".toPath()
-        fs.createDirectories(root)
-
-        with(fs) { (root / ".gitignore").writeToFile("") }
-        val patterns = with(fs) { parseGitignore(root) }
-
-        assertTrue(patterns.isEmpty())
-    }
-
-    @Test
-    //TODO: move to dedicated test file after implementing new gitignore parser
-    fun parseGitignore_handles_comments_and_blank_lines() {
-        val fs = FakeFileSystem()
-        val root = "/project".toPath()
-        fs.createDirectories(root)
-
-        val gitignoreContent = """
-            # This is a comment
-            
-            *.log
-            # Another comment
-            temp/
-            
-            node_modules
-        """.trimIndent()
-
-        with(fs) { (root / ".gitignore").writeToFile(gitignoreContent) }
-
-        // Use original parseGitignore function with FileSystem context
-        val patterns = with(fs) {
-            parseGitignore(root)
-        }
-
-        assertEquals(3, patterns.size)
-        assertTrue(patterns.contains("*.log"))
-        assertTrue(patterns.contains("temp/"))
-        assertTrue(patterns.contains("node_modules"))
-    }
-
-    @Test
-    //TODO: move to dedicated test file after implementing new gitignore parser
-    fun parseGitignore_handles_nonexistent_file() {
-        val fs = FakeFileSystem()
-        val root = "/project".toPath()
-        fs.createDirectories(root)
-
-        val gitignorePath = root / ".gitignore"
-        val exists = fs.exists(gitignorePath)
-
-        assertFalse(exists)
-    }
-
-    @Test
-    //TODO: move to dedicated test file after implementing new gitignore parser
-    fun glob_matching_works_correctly() {
-        // Use original matchesGlob extension function
-
-        // Test wildcard patterns
-        assertTrue("file.log".toPath().matchesGlob("*.log"))
-        assertFalse("file.txt".toPath().matchesGlob("*.log"))
-        assertTrue("test.json".toPath().matchesGlob("*.json"))
-
-        // Test single character patterns
-        assertTrue("file1.txt".toPath().matchesGlob("file?.txt"))
-        assertTrue("filea.txt".toPath().matchesGlob("file?.txt"))
-        assertFalse("file10.txt".toPath().matchesGlob("file?.txt"))
-
-        // Test directory patterns
-        assertTrue("temp/file.txt".toPath().matchesGlob("temp/*"))
-        assertTrue("node_modules/package/file.js".toPath().matchesGlob("node_modules/*"))
-
-        // Test exact matches
-        assertTrue("exact.txt".toPath().matchesGlob("exact.txt"))
-        assertFalse("different.txt".toPath().matchesGlob("exact.txt"))
-    }
 
     @Test
     fun tryParseAsBalatroManifest_handles_valid_manifest() {
@@ -302,7 +223,7 @@ class ManifestDiscoveryTest {
 
         // Use original discoverManifests function with FileSystem context and additional ignores
         val discovered = with(fs) {
-            discoverManifests(root, respectGitignore = true, additionalIgnores = setOf("custom_ignored"))
+            discoverManifests(root, respectGitignore = true, additionalIgnores = listOf("custom_ignored"))
         }
 
         assertEquals(1, discovered.size)

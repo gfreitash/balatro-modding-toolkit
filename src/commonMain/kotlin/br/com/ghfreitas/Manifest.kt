@@ -5,6 +5,10 @@ import co.touchlab.kermit.Logger
 import co.touchlab.kermit.Severity
 import co.touchlab.kermit.loggerConfigInit
 import co.touchlab.kermit.platformLogWriter
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import okio.FileSystem
 import okio.Path
@@ -26,32 +30,83 @@ data class DiscoveredManifest(
 /**
  * Discovers all valid Balatro mod manifests in a given directory recursively.
  *
+ * This function respects gitignore semantics including:
+ * - Root `.gitignore` file
+ * - Hierarchical `.gitignore` files in subdirectories
+ * - `.git/info/exclude` patterns
+ * - Proper gitignore pattern matching (negation, directory-only, etc.)
+ *
  * @param rootPath The root directory to begin searching for manifests.
- * @param respectGitignore Whether to exclude paths defined in a `.gitignore` file.
- * @param additionalIgnores A set of additional glob patterns to ignore during the search.
+ * @param respectGitignore Whether to exclude paths defined in gitignore files.
+ *        When true, respects .gitignore files at all levels and .git/info/exclude.
+ *        When false, only respects additionalIgnores.
+ * @param additionalIgnores A set of gitignore-style patterns to ignore during the search.
+ *        These patterns follow gitignore syntax and are always applied.
+ *        Note: .git/ and .bmt.json are always excluded.
  * @return A list of discovered manifests, each containing the file path and its metadata.
  */
 context(filesystem: FileSystem)
 fun discoverManifests(
     rootPath: Path,
     respectGitignore: Boolean = true,
-    additionalIgnores: Set<String> = emptySet()
+    additionalIgnores: List<String> = emptyList()
 ): List<DiscoveredManifest> {
-    val gitignore = if (respectGitignore) parseGitignore(rootPath) else emptySet()
-    val allIgnores = gitignore + additionalIgnores + setOf(".git", ".bmt.json")
+    val baseIgnorePatterns = listOf(".git/", ".bmt.json")
+    val allPatterns = baseIgnorePatterns + additionalIgnores.toList()
 
-    return filesystem.listRecursively(rootPath).filter {
-        it.name.endsWith(".json") && !it.name.endsWith(".bmt.json")
-    }.filterNot { path ->
-        log.d { "Found: ${path.name}" }
-        allIgnores.any { ignore ->
-            path.toString().contains(ignore) || path.matchesGlob(ignore)
+    return if (respectGitignore || additionalIgnores.isNotEmpty()) {
+        val parser = HierarchicalGitIgnoreParser(
+            fileSystem = filesystem,
+            rootPath = rootPath,
+            additionalPatterns = allPatterns,
+            ignoreGitIgnore = !respectGitignore
+        )
+        discoverManifestsWithParser(parser)
+    } else {
+        discoverManifestsWithoutGitignore(rootPath, allPatterns)
+    }
+}
+
+context(filesystem: FileSystem)
+private fun discoverManifestsWithParser(
+    parser: HierarchicalGitIgnoreParser
+): List<DiscoveredManifest> = runBlocking {
+    parser.traverse()
+        .filter { entry ->
+            !entry.isDirectory &&
+            !entry.gitignoreResult.isIgnored &&
+            entry.path.name.endsWith(".json") &&
+            !entry.path.name.endsWith(".bmt.json")
         }
-    }.mapNotNull { jsonPath ->
-        tryParseAsBalatroManifest(jsonPath)?.let { metadata ->
-            DiscoveredManifest(jsonPath, metadata)
+        .mapNotNull { entry ->
+            tryParseAsBalatroManifest(entry.path)?.let { metadata ->
+                DiscoveredManifest(entry.path, metadata)
+            }
         }
-    }.toList()
+        .toList()
+}
+
+context(filesystem: FileSystem)
+private fun discoverManifestsWithoutGitignore(
+    rootPath: Path,
+    ignorePatterns: List<String>
+): List<DiscoveredManifest> {
+    val allIgnores = ignorePatterns.toSet()
+
+    return filesystem.listRecursively(rootPath)
+        .filter { it.name.endsWith(".json") && !it.name.endsWith(".bmt.json") }
+        .filterNot { path ->
+            log.d { "Found: ${path.name}" }
+            allIgnores.any { ignore ->
+                path.toString().contains(ignore) || path.matchesGlob(ignore)
+            }
+        }
+        .mapNotNull { jsonPath ->
+            tryParseAsBalatroManifest(jsonPath)?.let { metadata ->
+                DiscoveredManifest(jsonPath, metadata)
+            }
+        }
+        .toList()
 }
 
 /**
@@ -82,28 +137,7 @@ fun tryParseAsBalatroManifest(jsonPath: Path, strict: Boolean = true): BalatroMo
     }
 }
 
-/**
- * Parses the contents of a `.gitignore` file located at the specified root path and extracts all
- * non-comment, non-blank patterns as a set of strings.
- *
- * @param rootPath The directory path where the `.gitignore` file is expected to be located.
- * @return A set of strings representing the parsed ignore patterns from the `.gitignore` file.
- *         Returns an empty set if the file does not exist or is empty.
- */
-context(filesystem: FileSystem)
-fun parseGitignore(rootPath: Path): Set<String> {
-    val gitignorePath = rootPath.resolve(".gitignore")
-    if (!filesystem.exists(gitignorePath)) return emptySet()
-
-    return filesystem.read(gitignorePath) {
-        readLines()
-            .filter { it.isNotBlank() && !it.startsWith("#") }
-            .map { it.trim() }
-            .toSet()
-    }
-}
-
-fun Path.matchesGlob(pattern: String): Boolean {
+private fun Path.matchesGlob(pattern: String): Boolean {
     val regex = pattern
         .replace(".", "\\.")
         .replace("*", ".*")

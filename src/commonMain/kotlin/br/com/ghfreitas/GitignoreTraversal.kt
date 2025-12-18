@@ -252,17 +252,20 @@ data class FileSystemEntry(
 class HierarchicalGitIgnoreParser(
     private val fileSystem: FileSystem = FileSystem.SYSTEM,
     private val rootPath: Path,
-    private val additionalPatterns: List<String> = emptyList()
+    private val additionalPatterns: List<String> = emptyList(),
+    ignoreGitIgnore: Boolean = false
 ) {
     private val rootLevel = mutableListOf<GitIgnorePattern>()
     private val levelCache = mutableMapOf<Path, GitIgnoreLevel>()
 
     init {
         loadRepositoryExclude()
-        loadRootGitignore()
+        if (!ignoreGitIgnore) {
+            loadRootGitignore()
+        }
         loadAdditionalPatterns()
     }
-    
+
     /**
      * Loads and parses the root `.gitignore` file if it exists,
      * adding the parsed patterns to the root-level ignore list.
@@ -352,7 +355,12 @@ class HierarchicalGitIgnoreParser(
      * @param lineNumber The line number of the pattern in the source file, used for tracking.
      * @return A `GitIgnorePattern` object representing the parsed pattern, or `null` if the line is a comment or invalid.
      */
-    private fun parsePattern(line: String, source: String, lineNumber: Int, baseDirectory: String = ""): GitIgnorePattern? {
+    private fun parsePattern(
+        line: String,
+        source: String,
+        lineNumber: Int,
+        baseDirectory: String = ""
+    ): GitIgnorePattern? {
         var pattern = line
 
         if (pattern.isBlank() || pattern.trimStart().startsWith('#')) {
@@ -367,7 +375,7 @@ class HierarchicalGitIgnoreParser(
         var trailingEscapedSpaces = 0
         var i = pattern.length - 1
         while (i > 0) {
-            if (pattern[i] == ' ' && pattern[i-1] == '\\') {
+            if (pattern[i] == ' ' && pattern[i - 1] == '\\') {
                 trailingEscapedSpaces++
                 i -= 2
             } else if (pattern[i] == ' ') {
@@ -410,7 +418,7 @@ class HierarchicalGitIgnoreParser(
             lineNumber = lineNumber,
             baseDirectory = baseDirectory
         )
-        
+
         return result
     }
 
@@ -481,7 +489,10 @@ class HierarchicalGitIgnoreParser(
             val parentRelativePath = parentDir.relativeTo(rootPath).toString()
 
             // Check if the PARENT path is ignored *as a directory*
-            val (parentIsIgnored, parentMatchedPattern) = grandParentLevel.isIgnored(parentRelativePath, isDirectory = true)
+            val (parentIsIgnored, parentMatchedPattern) = grandParentLevel.isIgnored(
+                parentRelativePath,
+                isDirectory = true
+            )
 
             // If the parent is excluded, the current path is also excluded,
             // regardless of any specific negation pattern matching the current path.

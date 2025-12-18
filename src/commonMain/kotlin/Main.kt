@@ -25,7 +25,7 @@ fun CliktCommand.findManifests(noGitignore: Boolean = false, ignore: List<String
     val discoveredManifests = discoverManifests(
         rootPath = project.rootPath.toPath(),
         respectGitignore = !noGitignore,
-        additionalIgnores = ignore.toSet()
+        additionalIgnores = ignore
     )
 
     val newMods = discoveredManifests.filterNot { manifest ->
