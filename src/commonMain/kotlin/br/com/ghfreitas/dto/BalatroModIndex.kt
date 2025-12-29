@@ -1,11 +1,12 @@
 package br.com.ghfreitas.dto
 
 import arrow.core.EitherNel
-import br.com.ghfreitas.dto.validation.Validatable
-import br.com.ghfreitas.dto.validation.ValidationError
-import br.com.ghfreitas.dto.validation.gather
-import br.com.ghfreitas.dto.validation.validation
+import br.com.ghfreitas.bmt.sharedkernel.domain.valueobjects.Validatable
+import br.com.ghfreitas.bmt.sharedkernel.domain.valueobjects.ValidationError
+import br.com.ghfreitas.bmt.sharedkernel.domain.valueobjects.gather
+import br.com.ghfreitas.bmt.sharedkernel.domain.valueobjects.validation
 import kotlin.jvm.JvmInline
+
 
 @JvmInline
 value class ModTitle(val value: String) : Validatable {

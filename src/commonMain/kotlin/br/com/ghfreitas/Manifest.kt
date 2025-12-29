@@ -1,5 +1,7 @@
 package br.com.ghfreitas
 
+import br.com.ghfreitas.bmt.sharedkernel.domain.service.IgnoreLogicService
+import br.com.ghfreitas.bmt.sharedkernel.infrastructure.GitIgnoreScanner
 import br.com.ghfreitas.dto.BalatroModMetadata
 import co.touchlab.kermit.Logger
 import co.touchlab.kermit.Severity
@@ -55,11 +57,12 @@ fun discoverManifests(
     val allPatterns = baseIgnorePatterns + additionalIgnores.toList()
 
     return if (respectGitignore || additionalIgnores.isNotEmpty()) {
-        val parser = HierarchicalGitIgnoreParser(
+        val parser = GitIgnoreScanner(
             fileSystem = filesystem,
             rootPath = rootPath,
             additionalPatterns = allPatterns,
-            ignoreGitIgnore = !respectGitignore
+            ignoreGitIgnore = !respectGitignore,
+            logicService = IgnoreLogicService()
         )
         discoverManifestsWithParser(parser)
     } else {
@@ -69,9 +72,9 @@ fun discoverManifests(
 
 context(filesystem: FileSystem)
 private fun discoverManifestsWithParser(
-    parser: HierarchicalGitIgnoreParser
+    parser: GitIgnoreScanner
 ): List<DiscoveredManifest> = runBlocking {
-    parser.traverse()
+    parser.scan()
         .filter { entry ->
             !entry.isDirectory &&
             !entry.gitignoreResult.isIgnored &&

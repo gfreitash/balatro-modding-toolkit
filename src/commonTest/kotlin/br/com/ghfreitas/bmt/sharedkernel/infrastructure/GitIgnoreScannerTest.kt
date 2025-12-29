@@ -1,16 +1,13 @@
-package br.com.ghfreitas
+package br.com.ghfreitas.bmt.sharedkernel.infrastructure
 
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import okio.Path
 import okio.Path.Companion.toPath
 import okio.fakefilesystem.FakeFileSystem
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
+import kotlin.test.*
 
 class GitignoreTraversalTest {
 
@@ -56,16 +53,21 @@ class GitignoreTraversalTest {
         (rootPath / ".git" / "info" / "exclude").writeToFile(patterns.joinToString("\n"))
     }
 
-    private fun createParser(): HierarchicalGitIgnoreParser {
-        return HierarchicalGitIgnoreParser(fs, rootPath)
+    private fun createParser(): GitIgnoreScanner {
+        return GitIgnoreScanner(fs, rootPath)
     }
 
-    private fun assertIgnored(parser: HierarchicalGitIgnoreParser, relativePath: String, isDir: Boolean = false, message: String? = null) {
+    private fun assertIgnored(
+        parser: GitIgnoreScanner,
+        relativePath: String,
+        message: String? = null,
+        isDir: Boolean = false,
+    ) {
         val path = rootPath / relativePath
         // Ensure parent directories exist
         path.parent?.let { fs.createDirectories(it) }
 
-        // Delete existing path if it's the wrong type
+        // Delete the existing path if it's the wrong type
         if (fs.exists(path)) {
             val metadata = fs.metadata(path)
             if ((isDir && !metadata.isDirectory) || (!isDir && metadata.isDirectory)) {
@@ -81,16 +83,21 @@ class GitignoreTraversalTest {
                 path.writeToFile("test content")
             }
         }
-        val result = parser.isIgnored(path)
+        val result = parser.getIgnoreResult(path)
         assertTrue(result.isIgnored, message ?: "Expected '$relativePath' to be ignored")
     }
 
-    private fun assertNotIgnored(parser: HierarchicalGitIgnoreParser, relativePath: String, isDir: Boolean = false, message: String? = null) {
+    private fun assertNotIgnored(
+        parser: GitIgnoreScanner,
+        relativePath: String,
+        message: String? = null,
+        isDir: Boolean = false,
+    ) {
         val path = rootPath / relativePath
         // Ensure parent directories exist
         path.parent?.let { fs.createDirectories(it) }
 
-        // Delete existing path if it's the wrong type
+        // Delete the existing path if it's the wrong type
         if (fs.exists(path)) {
             val metadata = fs.metadata(path)
             if ((isDir && !metadata.isDirectory) || (!isDir && metadata.isDirectory)) {
@@ -106,22 +113,22 @@ class GitignoreTraversalTest {
                 path.writeToFile("test content")
             }
         }
-        val result = parser.isIgnored(path)
+        val result = parser.getIgnoreResult(path)
         assertFalse(result.isIgnored, message ?: "Expected '$relativePath' to NOT be ignored")
     }
 
-    private fun assertDirIgnored(parser: HierarchicalGitIgnoreParser, relativePath: String, message: String? = null) {
+    private fun assertDirIgnored(parser: GitIgnoreScanner, relativePath: String, message: String) {
         val path = rootPath / relativePath
         fs.createDirectories(path)
-        val result = parser.isIgnored(path)
-        assertTrue(result.isIgnored, message ?: "Expected directory '$relativePath' to be ignored")
+        val result = parser.getIgnoreResult(path)
+        assertTrue(result.isIgnored, message)
     }
 
-    private fun assertDirNotIgnored(parser: HierarchicalGitIgnoreParser, relativePath: String, message: String? = null) {
+    private fun assertDirNotIgnored(parser: GitIgnoreScanner, relativePath: String, message: String) {
         val path = rootPath / relativePath
         fs.createDirectories(path)
-        val result = parser.isIgnored(path)
-        assertFalse(result.isIgnored, message ?: "Expected directory '$relativePath' to NOT be ignored")
+        val result = parser.getIgnoreResult(path)
+        assertFalse(result.isIgnored, message)
     }
 
     // ==================== 1. Line Parsing Basics ====================
@@ -143,9 +150,9 @@ class GitignoreTraversalTest {
         val parser = createParser()
 
         // Only *.log should be parsed as a pattern
-        assertIgnored(parser, "test.log", isDir = false, "*.log pattern should work")
-        assertNotIgnored(parser, "test.txt", isDir = false, "non-matching file should not be ignored")
-        assertNotIgnored(parser, "# this is a comment", isDir = false, "comment text as filename should not match")
+        assertIgnored(parser, "test.log", "*.log pattern should work")
+        assertNotIgnored(parser, "test.txt", "non-matching file should not be ignored")
+        assertNotIgnored(parser, "# this is a comment", "comment text as filename should not match")
     }
 
     @Test
@@ -154,9 +161,9 @@ class GitignoreTraversalTest {
 
         val parser = createParser()
 
-        assertIgnored(parser, "#important", isDir = false, "escaped hash should match literal #important")
-        assertIgnored(parser, "#backup#", isDir = false, "escaped hash should match #backup#")
-        assertNotIgnored(parser, "important", isDir = false, "should not match without the #")
+        assertIgnored(parser, "#important", "escaped hash should match literal #important")
+        assertIgnored(parser, "#backup#", "escaped hash should match #backup#")
+        assertNotIgnored(parser, "important", "should not match without the #")
     }
 
     @Test
@@ -166,8 +173,8 @@ class GitignoreTraversalTest {
 
         val parser = createParser()
 
-        assertIgnored(parser, "foo", isDir = false, "trailing spaces should be trimmed")
-        assertNotIgnored(parser, "foo   ", isDir = false, "trimmed pattern should not match filename with spaces")
+        assertIgnored(parser, "foo", "trailing spaces should be trimmed")
+        assertNotIgnored(parser, "foo   ", "trimmed pattern should not match filename with spaces")
         // Note: Testing escaped trailing space is tricky - implementation may vary
     }
 
@@ -179,10 +186,10 @@ class GitignoreTraversalTest {
 
         val parser = createParser()
 
-        assertIgnored(parser, "debug.log", isDir = false, "*.log should ignore debug.log")
-        assertIgnored(parser, "error.log", isDir = false, "*.log should ignore error.log")
-        assertNotIgnored(parser, "important.log", isDir = false, "!important.log should re-include")
-        assertNotIgnored(parser, "readme.txt", isDir = false, "non-matching files unaffected")
+        assertIgnored(parser, "debug.log", "*.log should ignore debug.log")
+        assertIgnored(parser, "error.log", "*.log should ignore error.log")
+        assertNotIgnored(parser, "important.log", "!important.log should re-include")
+        assertNotIgnored(parser, "readme.txt", "non-matching files unaffected")
     }
 
     @Test
@@ -195,8 +202,8 @@ class GitignoreTraversalTest {
 
         val parser = createParser()
 
-        assertIgnored(parser, "debug.log", isDir = false, "last pattern should win - debug.log should be ignored")
-        assertIgnored(parser, "error.log", isDir = false, "error.log should still be ignored")
+        assertIgnored(parser, "debug.log", "last pattern should win - debug.log should be ignored")
+        assertIgnored(parser, "error.log", "error.log should still be ignored")
     }
 
     @Test
@@ -209,7 +216,11 @@ class GitignoreTraversalTest {
         val parser = createParser()
 
         assertDirIgnored(parser, "logs", "logs/ directory should be ignored")
-        assertIgnored(parser, "logs/important.log", isDir = false, "A file cannot be UNIGNORED if its parent directory is ignored.")
+        assertIgnored(
+            parser,
+            "logs/important.log",
+            "A file cannot be UNIGNORED if its parent directory is ignored."
+        )
         // The key point: since logs/ is ignored, Git won't even descend into it
         // so !logs/important.log has no effect
         // In our traversal implementation, we skip ignored directories entirely
@@ -221,9 +232,9 @@ class GitignoreTraversalTest {
 
         val parser = createParser()
 
-        assertIgnored(parser, "!important.txt", isDir = false, "escaped ! should match literal !important.txt")
-        assertIgnored(parser, "!README", isDir = false, "escaped ! should match literal !README")
-        assertNotIgnored(parser, "important.txt", isDir = false, "should not match without the !")
+        assertIgnored(parser, "!important.txt", "escaped ! should match literal !important.txt")
+        assertIgnored(parser, "!README", "escaped ! should match literal !README")
+        assertNotIgnored(parser, "important.txt", "should not match without the !")
     }
 
     // ==================== 3. Slash Behavior and Path Relativity ====================
@@ -234,11 +245,11 @@ class GitignoreTraversalTest {
 
         val parser = createParser()
 
-        assertIgnored(parser, "foo.txt", isDir = false, "should match at root")
-        assertIgnored(parser, "src/foo.txt", isDir = false, "should match one level deep")
-        assertIgnored(parser, "src/main/foo.txt", isDir = false, "should match two levels deep")
-        assertIgnored(parser, "a/b/c/d/foo.txt", isDir = false, "should match at any depth")
-        assertNotIgnored(parser, "foo.txt.bak", isDir = false, "should not match different filename")
+        assertIgnored(parser, "foo.txt", "should match at root")
+        assertIgnored(parser, "src/foo.txt", "should match one level deep")
+        assertIgnored(parser, "src/main/foo.txt", "should match two levels deep")
+        assertIgnored(parser, "a/b/c/d/foo.txt", "should match at any depth")
+        assertNotIgnored(parser, "foo.txt.bak", "should not match different filename")
     }
 
     @Test
@@ -248,13 +259,13 @@ class GitignoreTraversalTest {
         val parser = createParser()
 
         // /foo.txt - only matches at root
-        assertIgnored(parser, "foo.txt", isDir = false, "/foo.txt should match at root")
-        assertNotIgnored(parser, "src/foo.txt", isDir = false, "/foo.txt should NOT match in subdirectory")
-        assertNotIgnored(parser, "a/b/foo.txt", isDir = false, "/foo.txt should NOT match deep in tree")
+        assertIgnored(parser, "foo.txt", "/foo.txt should match at root")
+        assertNotIgnored(parser, "src/foo.txt", "/foo.txt should NOT match in subdirectory")
+        assertNotIgnored(parser, "a/b/foo.txt", "/foo.txt should NOT match deep in tree")
 
         // /src/main.kt - only matches src/main.kt at root level
-        assertIgnored(parser, "src/main.kt", isDir = false, "/src/main.kt should match")
-        assertNotIgnored(parser, "other/src/main.kt", isDir = false, "/src/main.kt should NOT match in other/")
+        assertIgnored(parser, "src/main.kt", "/src/main.kt should match")
+        assertNotIgnored(parser, "other/src/main.kt", "/src/main.kt should NOT match in other/")
     }
 
     @Test
@@ -264,13 +275,13 @@ class GitignoreTraversalTest {
         val parser = createParser()
 
         // doc/frotz - middle slash means anchored
-        assertIgnored(parser, "doc/frotz", isDir = false, "doc/frotz should match at gitignore level")
-        assertNotIgnored(parser, "a/doc/frotz", isDir = false, "doc/frotz should NOT match at a/doc/frotz")
-        assertNotIgnored(parser, "x/y/doc/frotz", isDir = false, "doc/frotz should NOT match deep")
+        assertIgnored(parser, "doc/frotz", "doc/frotz should match at gitignore level")
+        assertNotIgnored(parser, "a/doc/frotz", "doc/frotz should NOT match at a/doc/frotz")
+        assertNotIgnored(parser, "x/y/doc/frotz", "doc/frotz should NOT match deep")
 
         // src/main/app.kt
-        assertIgnored(parser, "src/main/app.kt", isDir = false, "src/main/app.kt should match")
-        assertNotIgnored(parser, "other/src/main/app.kt", isDir = false, "should NOT match in other/")
+        assertIgnored(parser, "src/main/app.kt", "src/main/app.kt should match")
+        assertNotIgnored(parser, "other/src/main/app.kt", "should NOT match in other/")
     }
 
     @Test
@@ -292,8 +303,8 @@ class GitignoreTraversalTest {
             path.parent?.let { fs.createDirectories(it) }
             path.writeToFile("content")
 
-            val result1 = parser1.isIgnored(path).isIgnored
-            val result2 = parser2.isIgnored(path).isIgnored
+            val result1 = parser1.getIgnoreResult(path).isIgnored
+            val result2 = parser2.getIgnoreResult(path).isIgnored
 
             assertEquals(result1, result2, "doc/frotz and /doc/frotz should behave identically for path: $testPath")
         }
@@ -313,23 +324,27 @@ class GitignoreTraversalTest {
         val parser = createParser()
 
         // Root patterns apply everywhere
-        assertIgnored(parser, "app.log", isDir = false, "root *.log matches at root")
-        assertIgnored(parser, "src/debug.log", isDir = false, "root *.log matches in src/")
-        assertIgnored(parser, "src/main/error.log", isDir = false, "root *.log matches in src/main/")
+        assertIgnored(parser, "app.log", "root *.log matches at root")
+        assertIgnored(parser, "src/debug.log", "root *.log matches in src/")
+        assertIgnored(parser, "src/main/error.log", "root *.log matches in src/main/")
 
         // src/.gitignore patterns should be relative to src/
-        assertIgnored(parser, "src/temp.txt", isDir = false, "src's temp.txt should match src/temp.txt")
-        assertNotIgnored(parser, "temp.txt", isDir = false, "src's temp.txt should NOT match root temp.txt")
-        assertNotIgnored(parser, "other/temp.txt", isDir = false, "src's temp.txt should NOT match other/temp.txt")
+        assertIgnored(parser, "src/temp.txt", "src's temp.txt should match src/temp.txt")
+        assertNotIgnored(parser, "temp.txt", "src's temp.txt should NOT match root temp.txt")
+        assertNotIgnored(parser, "other/temp.txt", "src's temp.txt should NOT match other/temp.txt")
 
         // src/.gitignore "build/" pattern
         assertDirIgnored(parser, "src/build", "src's build/ should match src/build/")
         assertDirNotIgnored(parser, "build", "src's build/ should NOT match root build/")
 
         // src/main/.gitignore patterns should be relative to src/main/
-        assertIgnored(parser, "src/main/local.conf", isDir = false, "src/main's local.conf should match")
-        assertNotIgnored(parser, "src/local.conf", isDir = false, "src/main's local.conf should NOT match src/local.conf")
-        assertNotIgnored(parser, "local.conf", isDir = false, "src/main's local.conf should NOT match root")
+        assertIgnored(parser, "src/main/local.conf", "src/main's local.conf should match")
+        assertNotIgnored(
+            parser,
+            "src/local.conf",
+            "src/main's local.conf should NOT match src/local.conf"
+        )
+        assertNotIgnored(parser, "local.conf", "src/main's local.conf should NOT match root")
     }
 
     @Test
@@ -340,9 +355,21 @@ class GitignoreTraversalTest {
 
         val parser = createParser()
 
-        assertIgnored(parser, "src/sub/secret.txt", isDir = false, "src's sub/secret.txt should match src/sub/secret.txt")
-        assertNotIgnored(parser, "sub/secret.txt", isDir = false, "src's sub/secret.txt should NOT match root sub/secret.txt")
-        assertNotIgnored(parser, "other/sub/secret.txt", isDir = false, "src's sub/secret.txt should NOT match other/sub/secret.txt")
+        assertIgnored(
+            parser,
+            "src/sub/secret.txt",
+            "src's sub/secret.txt should match src/sub/secret.txt"
+        )
+        assertNotIgnored(
+            parser,
+            "sub/secret.txt",
+            "src's sub/secret.txt should NOT match root sub/secret.txt"
+        )
+        assertNotIgnored(
+            parser,
+            "other/sub/secret.txt",
+            "src's sub/secret.txt should NOT match other/sub/secret.txt"
+        )
     }
 
     // ==================== 4. Directory-Only Patterns (Trailing Slash) ====================
@@ -359,7 +386,7 @@ class GitignoreTraversalTest {
         assertDirIgnored(parser, "src/logs", "logs/ should match nested logs directory")
 
         // Should NOT match files with same name
-        assertNotIgnored(parser, "logs", isDir = false, "logs/ should NOT match file named 'logs'")
+        assertNotIgnored(parser, "logs", "logs/ should NOT match file named 'logs'")
         // Note: This test creates a file, not directory
         (rootPath / "logs_file").writeToFile("i am a file named logs")
         // We need a way to test file vs directory - the assertNotIgnored creates files
@@ -398,19 +425,19 @@ class GitignoreTraversalTest {
         val parser = createParser()
 
         // *.txt
-        assertIgnored(parser, "readme.txt", isDir = false, "*.txt should match readme.txt")
-        assertIgnored(parser, "a.txt", isDir = false, "*.txt should match a.txt")
-        assertIgnored(parser, ".txt", isDir = false, "*.txt should match .txt")
+        assertIgnored(parser, "readme.txt", "*.txt should match readme.txt")
+        assertIgnored(parser, "a.txt", "*.txt should match a.txt")
+        assertIgnored(parser, ".txt", "*.txt should match .txt")
 
         // temp.*
-        assertIgnored(parser, "temp.log", isDir = false, "temp.* should match temp.log")
-        assertIgnored(parser, "temp.txt", isDir = false, "temp.* should match temp.txt")
-        assertIgnored(parser, "temp.", isDir = false, "temp.* should match temp.")
+        assertIgnored(parser, "temp.log", "temp.* should match temp.log")
+        assertIgnored(parser, "temp.txt", "temp.* should match temp.txt")
+        assertIgnored(parser, "temp.", "temp.* should match temp.")
 
         // test_*_file
-        assertIgnored(parser, "test_abc_file", isDir = false, "test_*_file should match")
-        assertIgnored(parser, "test__file", isDir = false, "test_*_file should match empty *")
-        assertNotIgnored(parser, "test_a/b_file", isDir = false, "* should not match slash")
+        assertIgnored(parser, "test_abc_file", "test_*_file should match")
+        assertIgnored(parser, "test__file", "test_*_file should match empty *")
+        assertNotIgnored(parser, "test_a/b_file", "* should not match slash")
     }
 
     @Test
@@ -422,26 +449,26 @@ class GitignoreTraversalTest {
         // foo/* matches immediate children only
         (rootPath / "foo").createDir() // Ensure 'foo' is a directory
         (rootPath / "foo" / "bar").writeToFile("content") // Create 'foo/bar' as a file
-        assertIgnored(parser, "foo/bar", isDir = false, "foo/* should match foo/bar")
+        assertIgnored(parser, "foo/bar", "foo/* should match foo/bar")
 
         (rootPath / "foo" / "test.txt").writeToFile("content") // Create 'foo/test.txt' as a file
-        assertIgnored(parser, "foo/test.txt", isDir = false, "foo/* should match foo/test.txt")
+        assertIgnored(parser, "foo/test.txt", "foo/* should match foo/test.txt")
 
         // To test foo/bar/baz, we need foo/bar to be a directory.
         // Delete the file 'foo/bar' and recreate it as a directory.
         fs.delete(rootPath / "foo" / "bar", mustExist = true)
         (rootPath / "foo" / "bar").createDir()
         (rootPath / "foo" / "bar" / "baz").writeToFile("content") // Create foo/bar/baz as a file
-        assertIgnored(parser, "foo/bar/baz", isDir = false, "foo/* should match foo/bar/baz as foo/bar is ignored")
+        assertIgnored(parser, "foo/bar/baz", "foo/* should match foo/bar/baz as foo/bar is ignored")
 
         // src/*.kt
         (rootPath / "src").createDir() // Ensure 'src' is a directory
         (rootPath / "src" / "main.kt").writeToFile("content") // Create 'src/main.kt' as a file
-        assertIgnored(parser, "src/main.kt", isDir = false, "src/*.kt should match")
+        assertIgnored(parser, "src/main.kt", "src/*.kt should match")
 
         (rootPath / "src" / "main").createDir() // Ensure 'src/main' is a directory
         (rootPath / "src" / "main" / "app.kt").writeToFile("content") // Create 'src/main/app.kt' as a file
-        assertNotIgnored(parser, "src/main/app.kt", isDir = false, "src/*.kt should NOT match nested")
+        assertNotIgnored(parser, "src/main/app.kt", "src/*.kt should NOT match nested")
     }
 
     @Test
@@ -450,17 +477,17 @@ class GitignoreTraversalTest {
 
         val parser = createParser()
 
-        assertIgnored(parser, "a.txt", isDir = false, "?.txt should match a.txt")
-        assertIgnored(parser, "1.txt", isDir = false, "?.txt should match 1.txt")
-        assertNotIgnored(parser, "ab.txt", isDir = false, "?.txt should NOT match ab.txt")
-        assertNotIgnored(parser, ".txt", isDir = false, "?.txt should NOT match .txt (no char)")
+        assertIgnored(parser, "a.txt", "?.txt should match a.txt")
+        assertIgnored(parser, "1.txt", "?.txt should match 1.txt")
+        assertNotIgnored(parser, "ab.txt", "?.txt should NOT match ab.txt")
+        assertNotIgnored(parser, ".txt", "?.txt should NOT match .txt (no char)")
 
-        assertIgnored(parser, "test1.log", isDir = false, "test?.log should match")
-        assertIgnored(parser, "testX.log", isDir = false, "test?.log should match")
-        assertNotIgnored(parser, "test12.log", isDir = false, "test?.log should NOT match two chars")
+        assertIgnored(parser, "test1.log", "test?.log should match")
+        assertIgnored(parser, "testX.log", "test?.log should match")
+        assertNotIgnored(parser, "test12.log", "test?.log should NOT match two chars")
 
-        assertIgnored(parser, "aXb", isDir = false, "a?b should match aXb")
-        assertNotIgnored(parser, "a/b", isDir = false, "a?b should NOT match a/b (slash)")
+        assertIgnored(parser, "aXb", "a?b should match aXb")
+        assertNotIgnored(parser, "a/b", "a?b should NOT match a/b (slash)")
     }
 
     @Test
@@ -469,37 +496,35 @@ class GitignoreTraversalTest {
 
         val parser = createParser()
 
-                // [abc].txt
+        // [abc].txt
 
-                assertIgnored(parser, "a.txt", isDir = false, "[abc].txt should match a.txt")
+        assertIgnored(parser, "a.txt", "[abc].txt should match a.txt")
 
-                assertIgnored(parser, "b.txt", isDir = false, "[abc].txt should match b.txt")
+        assertIgnored(parser, "b.txt", "[abc].txt should match b.txt")
 
-                assertIgnored(parser, "c.txt", isDir = false, "[abc].txt should match c.txt")
+        assertIgnored(parser, "c.txt", "[abc].txt should match c.txt")
 
-                assertNotIgnored(parser, "d.txt", isDir = false, "[abc].txt should NOT match d.txt")
+        assertNotIgnored(parser, "d.txt", "[abc].txt should NOT match d.txt")
 
-        
 
-                // [0-9].log
+        // [0-9].log
 
-                assertIgnored(parser, "0.log", isDir = false, "[0-9].log should match 0.log")
+        assertIgnored(parser, "0.log", "[0-9].log should match 0.log")
 
-                assertIgnored(parser, "5.log", isDir = false, "[0-9].log should match 5.log")
+        assertIgnored(parser, "5.log", "[0-9].log should match 5.log")
 
-                assertIgnored(parser, "9.log", isDir = false, "[0-9].log should match 9.log")
+        assertIgnored(parser, "9.log", "[0-9].log should match 9.log")
 
-                assertNotIgnored(parser, "a.log", isDir = false, "[0-9].log should NOT match a.log")
+        assertNotIgnored(parser, "a.log", "[0-9].log should NOT match a.log")
 
-        
 
-                // [a-zA-Z]_file
+        // [a-zA-Z]_file
 
-                assertIgnored(parser, "x_file", isDir = false, "[a-zA-Z]_file should match")
+        assertIgnored(parser, "x_file", "[a-zA-Z]_file should match")
 
-                assertIgnored(parser, "Z_file", isDir = false, "[a-zA-Z]_file should match")
+        assertIgnored(parser, "Z_file", "[a-zA-Z]_file should match")
 
-                assertNotIgnored(parser, "1_file", isDir = false, "[a-zA-Z]_file should NOT match digit")
+        assertNotIgnored(parser, "1_file", "[a-zA-Z]_file should NOT match digit")
     }
 
     // ==================== 6. Double Asterisk Patterns ====================
@@ -511,19 +536,19 @@ class GitignoreTraversalTest {
         val parser = createParser()
 
         // **/foo
-        assertIgnored(parser, "foo", isDir = false, "**/foo should match at root")
-        assertIgnored(parser, "a/foo", isDir = false, "**/foo should match one level deep")
-        assertIgnored(parser, "a/b/foo", isDir = false, "**/foo should match two levels deep")
-        assertIgnored(parser, "a/b/c/d/e/foo", isDir = false, "**/foo should match at any depth")
+        assertIgnored(parser, "foo", "**/foo should match at root")
+        assertIgnored(parser, "a/foo", "**/foo should match one level deep")
+        assertIgnored(parser, "a/b/foo", "**/foo should match two levels deep")
+        assertIgnored(parser, "a/b/c/d/e/foo", "**/foo should match at any depth")
 
         // **/test.log
-        assertIgnored(parser, "test.log", isDir = false, "**/test.log should match at root")
-        assertIgnored(parser, "src/test.log", isDir = false, "**/test.log should match in src/")
-        assertIgnored(parser, "src/main/test.log", isDir = false, "**/test.log should match deep")
+        assertIgnored(parser, "test.log", "**/test.log should match at root")
+        assertIgnored(parser, "src/test.log", "**/test.log should match in src/")
+        assertIgnored(parser, "src/main/test.log", "**/test.log should match deep")
 
         // **/.env
-        assertIgnored(parser, ".env", isDir = false, "**/.env should match at root")
-        assertIgnored(parser, "config/.env", isDir = false, "**/.env should match in config/")
+        assertIgnored(parser, ".env", "**/.env should match at root")
+        assertIgnored(parser, "config/.env", "**/.env should match in config/")
     }
 
     @Test
@@ -533,14 +558,14 @@ class GitignoreTraversalTest {
         val parser = createParser()
 
         // **/foo/bar - bar directly under any foo
-        assertIgnored(parser, "foo/bar", isDir = false, "**/foo/bar should match at root")
-        assertIgnored(parser, "a/foo/bar", isDir = false, "**/foo/bar should match in a/")
-        assertIgnored(parser, "a/b/foo/bar", isDir = false, "**/foo/bar should match in a/b/")
-        assertNotIgnored(parser, "foo/x/bar", isDir = false, "**/foo/bar should NOT match foo/x/bar")
+        assertIgnored(parser, "foo/bar", "**/foo/bar should match at root")
+        assertIgnored(parser, "a/foo/bar", "**/foo/bar should match in a/")
+        assertIgnored(parser, "a/b/foo/bar", "**/foo/bar should match in a/b/")
+        assertNotIgnored(parser, "foo/x/bar", "**/foo/bar should NOT match foo/x/bar")
 
         // **/src/test.kt
-        assertIgnored(parser, "src/test.kt", isDir = false, "should match at root")
-        assertIgnored(parser, "project/src/test.kt", isDir = false, "should match in project/")
+        assertIgnored(parser, "src/test.kt", "should match at root")
+        assertIgnored(parser, "project/src/test.kt", "should match in project/")
     }
 
     @Test
@@ -550,19 +575,19 @@ class GitignoreTraversalTest {
         val parser = createParser()
 
         // abc/**
-        assertIgnored(parser, "abc/file.txt", isDir = false, "abc/** should match immediate child")
-        assertIgnored(parser, "abc/sub/file.txt", isDir = false, "abc/** should match nested")
-        assertIgnored(parser, "abc/a/b/c/d.txt", isDir = false, "abc/** should match deep")
-        assertNotIgnored(parser, "abc", isDir = true, "abc/** should NOT match abc itself (it's the container)")
+        assertIgnored(parser, "abc/file.txt", "abc/** should match immediate child")
+        assertIgnored(parser, "abc/sub/file.txt", "abc/** should match nested")
+        assertIgnored(parser, "abc/a/b/c/d.txt", "abc/** should match deep")
+        assertNotIgnored(parser, "abc", "abc/** should NOT match abc itself (it's the container)", isDir = true)
 
         // logs/**
-        assertIgnored(parser, "logs/app.log", isDir = false, "logs/** should match")
-        assertIgnored(parser, "logs/2024/01/app.log", isDir = false, "logs/** should match deep")
+        assertIgnored(parser, "logs/app.log", "logs/** should match")
+        assertIgnored(parser, "logs/2024/01/app.log", "logs/** should match deep")
 
         // src/test/** - anchored pattern
-        assertIgnored(parser, "src/test/unit.kt", isDir = false, "src/test/** should match")
-        assertIgnored(parser, "src/test/unit/app.kt", isDir = false, "src/test/** should match nested")
-        assertNotIgnored(parser, "other/src/test/unit.kt", isDir = false, "src/test/** should NOT match in other/")
+        assertIgnored(parser, "src/test/unit.kt", "src/test/** should match")
+        assertIgnored(parser, "src/test/unit/app.kt", "src/test/** should match nested")
+        assertNotIgnored(parser, "other/src/test/unit.kt", "src/test/** should NOT match in other/")
     }
 
     @Test
@@ -574,61 +599,61 @@ class GitignoreTraversalTest {
         // a/**/b - zero or more directories between a and b
         (rootPath / "a").createDir()
         (rootPath / "a" / "b").writeToFile("content")
-        assertIgnored(parser, "a/b", isDir = false, "a/**/b should match a/b (zero dirs)")
+        assertIgnored(parser, "a/b", "a/**/b should match a/b (zero dirs)")
 
         (rootPath / "a" / "x").createDir()
         (rootPath / "a" / "x" / "b").writeToFile("content")
-        assertIgnored(parser, "a/x/b", isDir = false, "a/**/b should match a/x/b (one dir)")
+        assertIgnored(parser, "a/x/b", "a/**/b should match a/x/b (one dir)")
 
         (rootPath / "a" / "x" / "y").createDir()
         (rootPath / "a" / "x" / "y" / "b").writeToFile("content")
-        assertIgnored(parser, "a/x/y/b", isDir = false, "a/**/b should match a/x/y/b (two dirs)")
+        assertIgnored(parser, "a/x/y/b", "a/**/b should match a/x/y/b (two dirs)")
 
         (rootPath / "a" / "x" / "y" / "z").createDir()
         (rootPath / "a" / "x" / "y" / "z" / "b").writeToFile("content")
-        assertIgnored(parser, "a/x/y/z/b", isDir = false, "a/**/b should match with many dirs")
+        assertIgnored(parser, "a/x/y/z/b", "a/**/b should match with many dirs")
 
         // To test a/b/c, we need a/b to be a directory.
         fs.delete(rootPath / "a" / "b", mustExist = true) // Delete the file
         (rootPath / "a" / "b").createDir() // Recreate as directory
         (rootPath / "a" / "b" / "c").writeToFile("content")
-        assertIgnored(parser, "a/b/c", isDir = false, "a/**/b should match a/b/c, since a/b is ignored and is a dir")
+        assertIgnored(parser, "a/b/c", "a/**/b should match a/b/c, since a/b is ignored and is a dir")
 
         // src/**/test.kt
         (rootPath / "src").createDir()
         (rootPath / "src" / "test.kt").writeToFile("content")
-        assertIgnored(parser, "src/test.kt", isDir = false, "src/**/test.kt should match (zero dirs)")
+        assertIgnored(parser, "src/test.kt", "src/**/test.kt should match (zero dirs)")
 
         (rootPath / "src" / "main").createDir()
         (rootPath / "src" / "main" / "test.kt").writeToFile("content")
-        assertIgnored(parser, "src/main/test.kt", isDir = false, "src/**/test.kt should match (one dir)")
+        assertIgnored(parser, "src/main/test.kt", "src/**/test.kt should match (one dir)")
 
         (rootPath / "src" / "main" / "kotlin").createDir()
         (rootPath / "src" / "main" / "kotlin" / "test.kt").writeToFile("content")
-        assertIgnored(parser, "src/main/kotlin/test.kt", isDir = false, "src/**/test.kt should match (two dirs)")
+        assertIgnored(parser, "src/main/kotlin/test.kt", "src/**/test.kt should match (two dirs)")
 
         // foo/**/bar/**/baz - multiple ** segments
         (rootPath / "foo").createDir()
         (rootPath / "foo" / "bar").createDir()
         (rootPath / "foo" / "bar" / "baz").writeToFile("content")
-        assertIgnored(parser, "foo/bar/baz", isDir = false, "should match with zero dirs in both")
+        assertIgnored(parser, "foo/bar/baz", "should match with zero dirs in both")
 
         (rootPath / "foo" / "x").createDir()
         (rootPath / "foo" / "x" / "bar").createDir()
         (rootPath / "foo" / "x" / "bar" / "baz").writeToFile("content")
-        assertIgnored(parser, "foo/x/bar/baz", isDir = false, "should match with one dir in first")
+        assertIgnored(parser, "foo/x/bar/baz", "should match with one dir in first")
 
         (rootPath / "foo" / "bar").createDir()
         (rootPath / "foo" / "bar" / "y").createDir()
         (rootPath / "foo" / "bar" / "y" / "baz").writeToFile("content")
-        assertIgnored(parser, "foo/bar/y/baz", isDir = false, "should match with one dir in second")
+        assertIgnored(parser, "foo/bar/y/baz", "should match with one dir in second")
 
         (rootPath / "foo" / "x" / "y").createDir()
         (rootPath / "foo" / "x" / "y" / "bar").createDir()
         (rootPath / "foo" / "x" / "y" / "bar" / "a").createDir()
         (rootPath / "foo" / "x" / "y" / "bar" / "a" / "b").createDir()
         (rootPath / "foo" / "x" / "y" / "bar" / "a" / "b" / "baz").writeToFile("content")
-        assertIgnored(parser, "foo/x/y/bar/a/b/baz", isDir = false, "should match with multiple dirs")
+        assertIgnored(parser, "foo/x/y/bar/a/b/baz", "should match with multiple dirs")
     }
 
     // ==================== 7. Escaping ====================
@@ -640,16 +665,16 @@ class GitignoreTraversalTest {
         val parser = createParser()
 
         // \*.txt should match literal *.txt
-        assertIgnored(parser, "*.txt", isDir = false, "\\*.txt should match literal *.txt")
-        assertNotIgnored(parser, "foo.txt", isDir = false, "\\*.txt should NOT match foo.txt")
+        assertIgnored(parser, "*.txt", "\\*.txt should match literal *.txt")
+        assertNotIgnored(parser, "foo.txt", "\\*.txt should NOT match foo.txt")
 
         // test\?.log should match literal test?.log
-        assertIgnored(parser, "test?.log", isDir = false, "\\? should match literal ?")
-        assertNotIgnored(parser, "test1.log", isDir = false, "\\? should NOT act as wildcard")
+        assertIgnored(parser, "test?.log", "\\? should match literal ?")
+        assertNotIgnored(parser, "test1.log", "\\? should NOT act as wildcard")
 
         // \[abc\].md should match literal [abc].md
-        assertIgnored(parser, "[abc].md", isDir = false, "escaped brackets should match literally")
-        assertNotIgnored(parser, "a.md", isDir = false, "escaped brackets should NOT act as range")
+        assertIgnored(parser, "[abc].md", "escaped brackets should match literally")
+        assertNotIgnored(parser, "a.md", "escaped brackets should NOT act as range")
     }
 
     // ==================== 8. Pattern Source Precedence ====================
@@ -665,12 +690,12 @@ class GitignoreTraversalTest {
         val parser = createParser()
 
         // At root level, all .log files ignored
-        assertIgnored(parser, "app.log", isDir = false, "root *.log should ignore app.log")
-        assertIgnored(parser, "debug.log", isDir = false, "root *.log should ignore debug.log at root")
+        assertIgnored(parser, "app.log", "root *.log should ignore app.log")
+        assertIgnored(parser, "debug.log", "root *.log should ignore debug.log at root")
 
         // In src/, debug.log should be re-included
-        assertIgnored(parser, "src/app.log", isDir = false, "*.log still ignores src/app.log")
-        assertNotIgnored(parser, "src/debug.log", isDir = false, "src's !debug.log should re-include")
+        assertIgnored(parser, "src/app.log", "*.log still ignores src/app.log")
+        assertNotIgnored(parser, "src/debug.log", "src's !debug.log should re-include")
     }
 
     @Test
@@ -680,8 +705,8 @@ class GitignoreTraversalTest {
 
         val parser = createParser()
 
-        assertIgnored(parser, "config.secret", isDir = false, "exclude file pattern should work")
-        assertIgnored(parser, "src/db.secret", isDir = false, "exclude file pattern should work at depth")
+        assertIgnored(parser, "config.secret", "exclude file pattern should work")
+        assertIgnored(parser, "src/db.secret", "exclude file pattern should work at depth")
         assertDirIgnored(parser, "private", "exclude directory pattern should work")
     }
 
@@ -695,7 +720,7 @@ class GitignoreTraversalTest {
         // .gitignore patterns are processed after exclude, so !debug.log should win
         // Actually, according to Git docs, .gitignore and exclude are at same precedence level
         // and patterns are combined, with last-match-wins
-        assertNotIgnored(parser, "debug.log", isDir = false, "!debug.log in .gitignore should re-include")
+        assertNotIgnored(parser, "debug.log", "!debug.log in .gitignore should re-include")
     }
 
     // ==================== 9. Traversal Integration Tests ====================
@@ -712,7 +737,7 @@ class GitignoreTraversalTest {
         (rootPath / "build" / "output.jar").writeToFile("jar")
 
         val parser = createParser()
-        val entries = parser.traverse().toList()
+        val entries = parser.scan().toList()
 
         val ignoredPaths = entries.filter { it.gitignoreResult.isIgnored }.map { it.relativePath }
         val trackedPaths = entries.filter { !it.gitignoreResult.isIgnored }.map { it.relativePath }
@@ -733,48 +758,13 @@ class GitignoreTraversalTest {
         (rootPath / "normal_dir" / "file.txt").writeToFile("content")
 
         val parser = createParser()
-        val entries = parser.traverse().toList()
+        val entries = parser.scan().toList()
         val allPaths = entries.map { it.relativePath }
 
         assertTrue("ignored_dir" in allPaths, "ignored_dir itself should appear")
         assertFalse("ignored_dir/should_not_appear.txt" in allPaths, "contents of ignored dir should not be traversed")
         assertFalse("ignored_dir/nested/deep.txt" in allPaths, "deep contents should not be traversed")
         assertTrue("normal_dir/file.txt" in allPaths || "normal_dir" in allPaths, "normal content should appear")
-    }
-
-    @Test
-    fun `getTrackedFiles returns only non-ignored files`() = runTest {
-        gitignore("*.log")
-
-        (rootPath / "readme.md").writeToFile("readme")
-        (rootPath / "app.log").writeToFile("log")
-        (rootPath / "src" / "main.kt").writeToFile("code")
-
-        val parser = createParser()
-        val trackedFiles = parser.getTrackedFiles().toList()
-        val trackedNames = trackedFiles.map { it.name }
-
-        assertTrue("readme.md" in trackedNames, "readme.md should be tracked")
-        assertTrue("main.kt" in trackedNames, "main.kt should be tracked")
-        assertFalse("app.log" in trackedNames, "app.log should NOT be in tracked files")
-        assertTrue(".gitignore" in trackedNames, ".gitignore itself should be trackable")
-    }
-
-    @Test
-    fun `getIgnoredFiles returns only ignored files`() = runTest {
-        gitignore("*.log", "temp/")
-
-        (rootPath / "readme.md").writeToFile("readme")
-        (rootPath / "app.log").writeToFile("log")
-        (rootPath / "temp").createDir()
-
-        val parser = createParser()
-        val ignoredFiles = parser.getIgnoredFiles().toList()
-        val ignoredNames = ignoredFiles.map { it.name }
-
-        assertTrue("app.log" in ignoredNames, "app.log should be ignored")
-        assertTrue("temp" in ignoredNames, "temp/ should be ignored")
-        assertFalse("readme.md" in ignoredNames, "readme.md should NOT be ignored")
     }
 
     // ==================== 10. Edge Cases ====================
@@ -785,8 +775,8 @@ class GitignoreTraversalTest {
 
         val parser = createParser()
 
-        assertNotIgnored(parser, "any_file.txt", isDir = false, "empty gitignore should not ignore anything")
-        assertNotIgnored(parser, "src/main.kt", isDir = false, "empty gitignore should not ignore anything")
+        assertNotIgnored(parser, "any_file.txt", "empty gitignore should not ignore anything")
+        assertNotIgnored(parser, "src/main.kt", "empty gitignore should not ignore anything")
     }
 
     @Test
@@ -801,7 +791,7 @@ class GitignoreTraversalTest {
 
         val parser = createParser()
 
-        assertNotIgnored(parser, "any_file.txt", isDir = false, "comment-only gitignore should not ignore anything")
+        assertNotIgnored(parser, "any_file.txt", "comment-only gitignore should not ignore anything")
     }
 
     @Test
@@ -813,7 +803,7 @@ class GitignoreTraversalTest {
 
         val parser = createParser()
 
-        assertIgnored(parser, deepPath, isDir = false, "pattern should match at extreme depth")
+        assertIgnored(parser, deepPath, "pattern should match at extreme depth")
     }
 
     @Test
@@ -821,8 +811,7 @@ class GitignoreTraversalTest {
         gitignore("*.log")
 
         val parser = createParser()
-        val trackedFiles = parser.getTrackedFiles().toList()
-        val trackedNames = trackedFiles.map { it.name }
+        val trackedNames = parser.scan().filter { !it.gitignoreResult.isIgnored }.map { it.path.name }.toList()
 
         // .gitignore should be trackable (not auto-ignored)
         // This depends on implementation - the file exists and isn't matched by patterns
@@ -835,24 +824,10 @@ class GitignoreTraversalTest {
 
         val parser = createParser()
 
-        assertIgnored(parser, "app.min.js", isDir = false, "*.min.js should match")
-        assertIgnored(parser, "types.d.ts", isDir = false, "*.d.ts should match")
-        assertIgnored(parser, "MainTest.test.kt", isDir = false, "*.test.kt should match")
-        assertNotIgnored(parser, "app.js", isDir = false, "*.min.js should not match app.js")
-    }
-
-    @Test
-    fun `clearCache allows reloading patterns`() {
-        gitignore("*.log")
-
-        val parser = createParser()
-        assertIgnored(parser, "test.log", isDir = false, "initial pattern should work")
-
-        // Simulate pattern change (in real scenario, file would be modified)
-        parser.clearCache()
-
-        // Cache is cleared, would re-read on next access
-        // This mainly tests that clearCache doesn't throw
+        assertIgnored(parser, "app.min.js", "*.min.js should match")
+        assertIgnored(parser, "types.d.ts", "*.d.ts should match")
+        assertIgnored(parser, "MainTest.test.kt", "*.test.kt should match")
+        assertNotIgnored(parser, "app.js", "*.min.js should not match app.js")
     }
 
     @Test
@@ -867,7 +842,7 @@ class GitignoreTraversalTest {
         fs.delete(rootPath / ".gitignore")
 
         // Parser B: same patterns programmatically via additionalPatterns
-        val parserB = HierarchicalGitIgnoreParser(
+        val parserB = GitIgnoreScanner(
             fs, rootPath,
             additionalPatterns = patterns
         )
@@ -884,8 +859,8 @@ class GitignoreTraversalTest {
 
         // Both parsers should produce identical results
         for ((path, _) in testPaths) {
-            val resultA = parserA.isIgnored(rootPath / path)
-            val resultB = parserB.isIgnored(rootPath / path)
+            val resultA = parserA.getIgnoreResult(rootPath / path)
+            val resultB = parserB.getIgnoreResult(rootPath / path)
 
             assertEquals(
                 resultA.isIgnored,
@@ -901,16 +876,20 @@ class GitignoreTraversalTest {
         gitignore("*.log")
 
         // additionalPatterns: re-include important.log (should override root .gitignore)
-        val parser = HierarchicalGitIgnoreParser(
+        val parser = GitIgnoreScanner(
             fs, rootPath,
             additionalPatterns = listOf("!important.log")
         )
 
         // important.log should NOT be ignored (additionalPatterns wins due to highest priority)
-        assertNotIgnored(parser, "important.log", isDir = false, "important.log should be re-included by additionalPatterns")
+        assertNotIgnored(
+            parser,
+            "important.log",
+            "important.log should be re-included by additionalPatterns"
+        )
 
         // Other .log files should still be ignored
-        assertIgnored(parser, "debug.log", isDir = false, "debug.log should still be ignored")
-        assertIgnored(parser, "app.log", isDir = false, "app.log should still be ignored")
+        assertIgnored(parser, "debug.log", "debug.log should still be ignored")
+        assertIgnored(parser, "app.log", "app.log should still be ignored")
     }
 }

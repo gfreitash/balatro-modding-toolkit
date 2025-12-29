@@ -2,6 +2,7 @@ package br.com.ghfreitas
 
 import BMTProject
 import DiscoveredMod
+import br.com.ghfreitas.bmt.sharedkernel.infrastructure.writeToFile
 import okio.Path.Companion.toPath
 import okio.fakefilesystem.FakeFileSystem
 import kotlin.test.*

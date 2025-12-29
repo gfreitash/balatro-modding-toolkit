@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalContracts::class)
 
-package br.com.ghfreitas.dto.validation
+package br.com.ghfreitas.bmt.sharedkernel.domain.valueobjects
 
 import arrow.core.Either
 import arrow.core.EitherNel
@@ -11,6 +11,13 @@ import arrow.core.raise.either
 import arrow.core.recover
 import kotlin.contracts.ExperimentalContracts
 import kotlin.jvm.JvmInline
+
+/**
+ * Shared Kernel - Validation Framework
+ *
+ * This module provides the foundation for domain validation using Arrow's functional error handling.
+ * All value objects and entities in the domain layer use this framework to validate their business rules.
+ */
 
 @JvmInline
 value class ValidationError(val message: String)
