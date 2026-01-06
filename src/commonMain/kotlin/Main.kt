@@ -20,7 +20,7 @@ val PrettyJson = Json {
     ignoreUnknownKeys = true
 }
 
-fun CliktCommand.findManifests(noGitignore: Boolean = false, ignore: List<String> = emptyList()) = with(FileSystem.SYSTEM) {
+fun CliktCommand.findManifests(noGitignore: Boolean = false, ignore: List<String> = emptyList()): Unit = with(FileSystem.SYSTEM) {
     val project = BMTProject.load() ?: error("Not in a BMT project. Run 'bmt-cli init' first.")
     val discoveredManifests = discoverManifests(
         rootPath = project.rootPath.toPath(),
@@ -117,7 +117,7 @@ class InitCommand : CliktCommand(name = "init") {
 
     override fun help(context: Context): String = "Initializes a BMT project in the current directory and search for manifests."
 
-    override fun run() = with(FileSystem.SYSTEM) {
+    override fun run(): Unit = with(FileSystem.SYSTEM) {
         val exists = BMTProject.exists()
         if (exists == null) {
             echo("It was not possible to read the BMT project file. The file might be corrupted or this might be a transient failure")

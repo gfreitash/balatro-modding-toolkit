@@ -1,6 +1,9 @@
 package br.com.ghfreitas
 
 import br.com.ghfreitas.bmt.common.domain.service.IgnoreLogicService
+import br.com.ghfreitas.bmt.common.domain.valueobjects.Invalid
+import br.com.ghfreitas.bmt.common.domain.valueobjects.Valid
+import br.com.ghfreitas.bmt.common.domain.valueobjects.validating
 import br.com.ghfreitas.bmt.common.infrastructure.GitIgnoreScanner
 import br.com.ghfreitas.dto.BalatroModMetadata
 import co.touchlab.kermit.Logger
@@ -21,7 +24,7 @@ val log = Logger(
         platformLogWriter(),
         minSeverity = Severity.Info
     ),
-    tag=TAG
+    tag = TAG
 )
 
 data class DiscoveredManifest(
@@ -77,9 +80,9 @@ private fun discoverManifestsWithParser(
     parser.scan()
         .filter { entry ->
             !entry.isDirectory &&
-            !entry.gitignoreResult.isIgnored &&
-            entry.path.name.endsWith(".json") &&
-            !entry.path.name.endsWith(".bmt.json")
+                    !entry.gitignoreResult.isIgnored &&
+                    entry.path.name.endsWith(".json") &&
+                    !entry.path.name.endsWith(".bmt.json")
         }
         .mapNotNull { entry ->
             tryParseAsBalatroManifest(entry.path)?.let { metadata ->
@@ -130,10 +133,11 @@ fun tryParseAsBalatroManifest(jsonPath: Path, strict: Boolean = true): BalatroMo
         val content = filesystem.read(jsonPath) { readUtf8() }
         val metadata = Json.decodeFromString<BalatroModMetadata>(content)
 
-        metadata.validate().fold(
-            { if (strict) null else metadata }, // Invalid manifest
-            { metadata } // Valid manifest
-        )
+        when (validating { metadata.constraints() }) {
+            is Valid -> metadata
+            is Invalid -> if (strict) null else metadata
+        }
+
     } catch (e: Exception) {
         log.v { "Failed: $jsonPath\n${e.message}" }
         null

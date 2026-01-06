@@ -1,5 +1,8 @@
 package br.com.ghfreitas
 
+import br.com.ghfreitas.bmt.common.domain.valueobjects.Invalid
+import br.com.ghfreitas.bmt.common.domain.valueobjects.Valid
+import br.com.ghfreitas.bmt.common.domain.valueobjects.validating
 import br.com.ghfreitas.bmt.common.infrastructure.writeToFile
 import br.com.ghfreitas.dto.*
 import kotlinx.serialization.json.Json
@@ -22,7 +25,7 @@ class ManifestDiscoveryTest {
     @Test
     fun valid_metadata_is_valid() {
         val metadata = validMetadata()
-        assertTrue(!metadata.validate().isLeft())
+        assertTrue(validating { metadata.constraints()} is Valid)
     }
 
 
@@ -111,7 +114,7 @@ class ManifestDiscoveryTest {
             tryParseAsBalatroManifest(manifestPath, strict = false)
         }
 
-        assertTrue(invalidMetadata.validate().isLeft())
+        assertTrue(validating { invalidMetadata.constraints() } is Invalid)
         assertNotNull(result)
     }
 

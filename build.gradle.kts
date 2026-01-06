@@ -38,7 +38,6 @@ kotlin {
                     entryPoint = "main"
                     linkerOpts.add("-Wl,--as-needed")
                     linkerOpts.add("--allow-multiple-definition")
-                    debuggable = true
                 }
                 getTest(DEBUG).apply {
                     linkerOpts.add("-Wl,--as-needed")
