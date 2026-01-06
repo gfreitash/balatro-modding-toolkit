@@ -5,7 +5,7 @@ import br.com.ghfreitas.bmt.common.domain.valueobjects.Invalid
 import br.com.ghfreitas.bmt.common.domain.valueobjects.Valid
 import br.com.ghfreitas.bmt.common.domain.valueobjects.validating
 import br.com.ghfreitas.bmt.common.infrastructure.GitIgnoreScanner
-import br.com.ghfreitas.dto.BalatroModMetadata
+import br.com.ghfreitas.bmt.projectmanagement.domain.model.steamodded.SteamoddedManifest
 import co.touchlab.kermit.Logger
 import co.touchlab.kermit.Severity
 import co.touchlab.kermit.loggerConfigInit
@@ -29,7 +29,7 @@ val log = Logger(
 
 data class DiscoveredManifest(
     val path: Path,
-    val metadata: BalatroModMetadata
+    val metadata: SteamoddedManifest
 )
 
 /**
@@ -128,10 +128,10 @@ private fun discoverManifestsWithoutGitignore(
  * @return An instance of `BalatroModMetadata` if the file is valid, or null otherwise.
  */
 context(filesystem: FileSystem)
-fun tryParseAsBalatroManifest(jsonPath: Path, strict: Boolean = true): BalatroModMetadata? {
+fun tryParseAsBalatroManifest(jsonPath: Path, strict: Boolean = true): SteamoddedManifest? {
     return try {
         val content = filesystem.read(jsonPath) { readUtf8() }
-        val metadata = Json.decodeFromString<BalatroModMetadata>(content)
+        val metadata = Json.decodeFromString<SteamoddedManifest>(content)
 
         when (validating { metadata.constraints() }) {
             is Valid -> metadata

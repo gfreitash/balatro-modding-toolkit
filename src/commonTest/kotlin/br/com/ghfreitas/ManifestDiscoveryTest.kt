@@ -4,7 +4,8 @@ import br.com.ghfreitas.bmt.common.domain.valueobjects.Invalid
 import br.com.ghfreitas.bmt.common.domain.valueobjects.Valid
 import br.com.ghfreitas.bmt.common.domain.valueobjects.validating
 import br.com.ghfreitas.bmt.common.infrastructure.writeToFile
-import br.com.ghfreitas.dto.*
+import br.com.ghfreitas.bmt.projectmanagement.domain.model.ModAuthor
+import br.com.ghfreitas.bmt.projectmanagement.domain.model.steamodded.*
 import kotlinx.serialization.json.Json
 import okio.Path.Companion.toPath
 import okio.fakefilesystem.FakeFileSystem
@@ -12,7 +13,7 @@ import kotlin.test.*
 
 class ManifestDiscoveryTest {
 
-    private fun validMetadata(): BalatroModMetadata = BalatroModMetadata(
+    private fun validMetadata(): SteamoddedManifest = SteamoddedManifest(
         id = ModId("test_mod"),
         name = ModName("Test Mod"),
         author = listOf(ModAuthor("Alice")),

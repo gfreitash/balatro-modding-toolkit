@@ -1,15 +1,15 @@
-package br.com.ghfreitas.dto
+package br.com.ghfreitas.bmt.projectmanagement.domain.model.steamodded
 
 import arrow.core.raise.context.RaiseAccumulate
 import arrow.core.raise.context.ensureOrAccumulate
 import br.com.ghfreitas.bmt.common.domain.valueobjects.Validatable
 import br.com.ghfreitas.bmt.common.domain.valueobjects.ValidationError
+import br.com.ghfreitas.bmt.projectmanagement.domain.model.ModAuthor
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonIgnoreUnknownKeys
 import kotlin.jvm.JvmInline
 
-// EitherNel = Either<NonEmptyList<ValidationError>, Unit>
 @Serializable
 @JvmInline
 value class ModId(val value: String) : Validatable {
@@ -35,15 +35,6 @@ value class ModName(val value: String) : Validatable {
     context(_: RaiseAccumulate<ValidationError>)
     override fun constraints() {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("ModName cannot be blank") }
-    }
-}
-
-@Serializable
-@JvmInline
-value class ModAuthor(val value: String) : Validatable {
-    context(_: RaiseAccumulate<ValidationError>)
-    override fun constraints() {
-        ensureOrAccumulate(value.isNotBlank()) { ValidationError("ModAuthor cannot be blank") }
     }
 }
 
@@ -187,7 +178,7 @@ value class ProvideSpec(val value: String) : Validatable {
 
 @Serializable
 @JsonIgnoreUnknownKeys
-data class BalatroModMetadata(
+data class SteamoddedManifest(
     val id: ModId,
     val name: ModName,
     val author: List<ModAuthor>,

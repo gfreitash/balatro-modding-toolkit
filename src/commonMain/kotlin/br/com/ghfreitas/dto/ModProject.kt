@@ -1,5 +1,7 @@
 package br.com.ghfreitas.dto
 
+import br.com.ghfreitas.bmt.projectmanagement.domain.model.FolderName
+
 data class ModProject(
     val name: String,
     val folderName: FolderName = FolderName(name),
