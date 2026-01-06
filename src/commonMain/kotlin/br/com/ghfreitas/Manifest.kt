@@ -1,7 +1,7 @@
 package br.com.ghfreitas
 
-import br.com.ghfreitas.bmt.sharedkernel.domain.service.IgnoreLogicService
-import br.com.ghfreitas.bmt.sharedkernel.infrastructure.GitIgnoreScanner
+import br.com.ghfreitas.bmt.common.domain.service.IgnoreLogicService
+import br.com.ghfreitas.bmt.common.infrastructure.GitIgnoreScanner
 import br.com.ghfreitas.dto.BalatroModMetadata
 import co.touchlab.kermit.Logger
 import co.touchlab.kermit.Severity

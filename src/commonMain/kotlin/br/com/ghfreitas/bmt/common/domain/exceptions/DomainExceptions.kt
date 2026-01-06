@@ -1,4 +1,4 @@
-package br.com.ghfreitas.bmt.sharedkernel.domain.exceptions
+package br.com.ghfreitas.bmt.common.domain.exceptions
 
 /**
  * Shared Kernel - Domain Exceptions

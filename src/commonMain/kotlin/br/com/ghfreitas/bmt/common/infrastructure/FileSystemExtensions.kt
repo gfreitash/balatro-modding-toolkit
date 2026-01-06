@@ -1,4 +1,4 @@
-package br.com.ghfreitas.bmt.sharedkernel.infrastructure
+package br.com.ghfreitas.bmt.common.infrastructure
 
 import okio.BufferedSource
 import okio.FileSystem

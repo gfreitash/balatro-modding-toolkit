@@ -1,4 +1,4 @@
-package br.com.ghfreitas.bmt.sharedkernel.domain.valueobjects
+package br.com.ghfreitas.bmt.common.domain.valueobjects
 
 import okio.Path
 

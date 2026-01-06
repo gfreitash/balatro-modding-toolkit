@@ -1,10 +1,10 @@
 package br.com.ghfreitas
 
-import br.com.ghfreitas.bmt.sharedkernel.infrastructure.cwd
-import br.com.ghfreitas.bmt.sharedkernel.infrastructure.readAsString
-import br.com.ghfreitas.bmt.sharedkernel.infrastructure.readLines
-import br.com.ghfreitas.bmt.sharedkernel.infrastructure.toAbsolutePath
-import br.com.ghfreitas.bmt.sharedkernel.infrastructure.writeToFile
+import br.com.ghfreitas.bmt.common.infrastructure.cwd
+import br.com.ghfreitas.bmt.common.infrastructure.readAsString
+import br.com.ghfreitas.bmt.common.infrastructure.readLines
+import br.com.ghfreitas.bmt.common.infrastructure.toAbsolutePath
+import br.com.ghfreitas.bmt.common.infrastructure.writeToFile
 import okio.FileSystem
 import okio.IOException
 import okio.Path.Companion.toPath

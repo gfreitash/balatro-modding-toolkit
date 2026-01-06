@@ -1,12 +1,12 @@
 [versions]
-kotlin = "2.2.0"
-kotlinxSerialization = "1.8.0"
+kotlin = "2.3.0"
+kotlinxSerialization = "1.10.0-RC"
 kotlinxCoroutines = "1.10.2"
-okioVersion = "3.16.0"
-arrowKtVersion = "2.1.0"
+okioVersion = "3.16.4"
+arrowKtVersion = "2.2.1.1"
 cliktVersion = "5.0.3"
-kermitVersion = "2.0.4"
-kover = "0.9.3"
+kermitVersion = "2.0.8"
+kover = "0.9.4"
 
 [libraries]
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }

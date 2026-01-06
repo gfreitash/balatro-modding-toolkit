@@ -1,10 +1,10 @@
 package br.com.ghfreitas.dto
 
 import arrow.core.EitherNel
-import br.com.ghfreitas.bmt.sharedkernel.domain.valueobjects.Validatable
-import br.com.ghfreitas.bmt.sharedkernel.domain.valueobjects.ValidationError
-import br.com.ghfreitas.bmt.sharedkernel.domain.valueobjects.gather
-import br.com.ghfreitas.bmt.sharedkernel.domain.valueobjects.validation
+import br.com.ghfreitas.bmt.common.domain.valueobjects.Validatable
+import br.com.ghfreitas.bmt.common.domain.valueobjects.ValidationError
+import br.com.ghfreitas.bmt.common.domain.valueobjects.gather
+import br.com.ghfreitas.bmt.common.domain.valueobjects.validation
 import kotlin.jvm.JvmInline
 
 

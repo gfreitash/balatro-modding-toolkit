@@ -1,7 +1,7 @@
-package br.com.ghfreitas.bmt.sharedkernel.domain.service
+package br.com.ghfreitas.bmt.common.domain.service
 
-import br.com.ghfreitas.bmt.sharedkernel.domain.valueobjects.GitIgnoreLevel
-import br.com.ghfreitas.bmt.sharedkernel.domain.valueobjects.GitIgnoreResult
+import br.com.ghfreitas.bmt.common.domain.valueobjects.GitIgnoreLevel
+import br.com.ghfreitas.bmt.common.domain.valueobjects.GitIgnoreResult
 import okio.Path
 
 /**

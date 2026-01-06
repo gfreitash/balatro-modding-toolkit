@@ -1,10 +1,10 @@
-package br.com.ghfreitas.bmt.sharedkernel.infrastructure
+package br.com.ghfreitas.bmt.common.infrastructure
 
-import br.com.ghfreitas.bmt.sharedkernel.domain.service.IgnoreLogicService
-import br.com.ghfreitas.bmt.sharedkernel.domain.valueobjects.FileSystemEntry
-import br.com.ghfreitas.bmt.sharedkernel.domain.valueobjects.GitIgnoreLevel
-import br.com.ghfreitas.bmt.sharedkernel.domain.valueobjects.GitIgnorePattern
-import br.com.ghfreitas.bmt.sharedkernel.domain.valueobjects.GitIgnoreResult
+import br.com.ghfreitas.bmt.common.domain.service.IgnoreLogicService
+import br.com.ghfreitas.bmt.common.domain.valueobjects.FileSystemEntry
+import br.com.ghfreitas.bmt.common.domain.valueobjects.GitIgnoreLevel
+import br.com.ghfreitas.bmt.common.domain.valueobjects.GitIgnorePattern
+import br.com.ghfreitas.bmt.common.domain.valueobjects.GitIgnoreResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.Flow

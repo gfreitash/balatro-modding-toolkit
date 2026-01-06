@@ -1,6 +1,6 @@
-import br.com.ghfreitas.bmt.sharedkernel.infrastructure.cwd
-import br.com.ghfreitas.bmt.sharedkernel.infrastructure.readAsString
-import br.com.ghfreitas.bmt.sharedkernel.infrastructure.writeToFile
+import br.com.ghfreitas.bmt.common.infrastructure.cwd
+import br.com.ghfreitas.bmt.common.infrastructure.readAsString
+import br.com.ghfreitas.bmt.common.infrastructure.writeToFile
 import br.com.ghfreitas.discoverManifests
 import com.github.ajalt.clikt.core.*
 import com.github.ajalt.clikt.parameters.options.flag

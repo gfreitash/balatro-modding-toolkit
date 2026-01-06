@@ -1,6 +1,6 @@
 package br.com.ghfreitas
 
-import br.com.ghfreitas.bmt.sharedkernel.infrastructure.writeToFile
+import br.com.ghfreitas.bmt.common.infrastructure.writeToFile
 import br.com.ghfreitas.dto.*
 import kotlinx.serialization.json.Json
 import okio.Path.Companion.toPath
