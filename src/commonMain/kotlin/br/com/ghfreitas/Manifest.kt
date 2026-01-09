@@ -59,18 +59,15 @@ fun discoverManifests(
     val baseIgnorePatterns = listOf(".git/", ".bmt.json")
     val allPatterns = baseIgnorePatterns + additionalIgnores.toList()
 
-    return if (respectGitignore || additionalIgnores.isNotEmpty()) {
-        val parser = GitIgnoreScanner(
-            fileSystem = filesystem,
-            rootPath = rootPath,
-            additionalPatterns = allPatterns,
-            ignoreGitIgnore = !respectGitignore,
-            logicService = IgnoreLogicService()
-        )
-        discoverManifestsWithParser(parser)
-    } else {
-        discoverManifestsWithoutGitignore(rootPath, allPatterns)
-    }
+    val parser = GitIgnoreScanner(
+        fileSystem = filesystem,
+        rootPath = rootPath,
+        additionalPatterns = allPatterns,
+        ignoreGitIgnore = !respectGitignore,
+        logicService = IgnoreLogicService()
+    )
+
+    return discoverManifestsWithParser(parser)
 }
 
 context(filesystem: FileSystem)
@@ -92,28 +89,6 @@ private fun discoverManifestsWithParser(
         .toList()
 }
 
-context(filesystem: FileSystem)
-private fun discoverManifestsWithoutGitignore(
-    rootPath: Path,
-    ignorePatterns: List<String>
-): List<DiscoveredManifest> {
-    val allIgnores = ignorePatterns.toSet()
-
-    return filesystem.listRecursively(rootPath)
-        .filter { it.name.endsWith(".json") && !it.name.endsWith(".bmt.json") }
-        .filterNot { path ->
-            log.d { "Found: ${path.name}" }
-            allIgnores.any { ignore ->
-                path.toString().contains(ignore) || path.matchesGlob(ignore)
-            }
-        }
-        .mapNotNull { jsonPath ->
-            tryParseAsBalatroManifest(jsonPath)?.let { metadata ->
-                DiscoveredManifest(jsonPath, metadata)
-            }
-        }
-        .toList()
-}
 
 /**
  * Attempts to parse and validate a JSON file located at the given path as a Balatro mod manifest.
@@ -142,14 +117,4 @@ fun tryParseAsBalatroManifest(jsonPath: Path, strict: Boolean = true): Steamodde
         log.v { "Failed: $jsonPath\n${e.message}" }
         null
     }
-}
-
-private fun Path.matchesGlob(pattern: String): Boolean {
-    val regex = pattern
-        .replace(".", "\\.")
-        .replace("*", ".*")
-        .replace("?", ".")
-        .toRegex()
-
-    return regex.matches(this.toString())
 }
