@@ -1,7 +1,7 @@
 import br.com.ghfreitas.bmt.common.infrastructure.cwd
 import br.com.ghfreitas.bmt.common.infrastructure.readAsString
 import br.com.ghfreitas.bmt.common.infrastructure.writeToFile
-import br.com.ghfreitas.discoverManifests
+import br.com.ghfreitas.bmt.projectmanagement.application.service.ModDiscoveryService
 import com.github.ajalt.clikt.core.*
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.help
@@ -22,7 +22,8 @@ val PrettyJson = Json {
 
 fun CliktCommand.findManifests(noGitignore: Boolean = false, ignore: List<String> = emptyList()): Unit = with(FileSystem.SYSTEM) {
     val project = BMTProject.load() ?: error("Not in a BMT project. Run 'bmt-cli init' first.")
-    val discoveredManifests = discoverManifests(
+    val modDiscoveryService = ModDiscoveryService(this)
+    val discoveredManifests = modDiscoveryService.discoverMods(
         rootPath = project.rootPath.toPath(),
         respectGitignore = !noGitignore,
         additionalIgnores = ignore
@@ -50,7 +51,8 @@ fun CliktCommand.findManifests(noGitignore: Boolean = false, ignore: List<String
 
         updatedMods.add(
             DiscoveredMod(
-                name = manifest.metadata.id.value,
+                //if manifest not exists mod is lovely and the name is the folder name
+                name = manifest.metadata?.id?.value ?: manifest.path.name,
                 manifestPath = manifest.path.toString(),
                 included = include
             )

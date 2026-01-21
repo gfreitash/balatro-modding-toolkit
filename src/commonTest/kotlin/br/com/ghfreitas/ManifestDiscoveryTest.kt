@@ -4,14 +4,18 @@ import br.com.ghfreitas.bmt.common.domain.valueobjects.Invalid
 import br.com.ghfreitas.bmt.common.domain.valueobjects.Valid
 import br.com.ghfreitas.bmt.common.domain.valueobjects.validating
 import br.com.ghfreitas.bmt.common.infrastructure.writeToFile
+import br.com.ghfreitas.bmt.projectmanagement.application.service.ModDiscoveryService
 import br.com.ghfreitas.bmt.projectmanagement.domain.model.ModAuthor
 import br.com.ghfreitas.bmt.projectmanagement.domain.model.steamodded.*
 import kotlinx.serialization.json.Json
+import okio.FileSystem
 import okio.Path.Companion.toPath
 import okio.fakefilesystem.FakeFileSystem
 import kotlin.test.*
 
 class ManifestDiscoveryTest {
+    private lateinit var fs: FileSystem
+    private lateinit var modDiscoveryService: ModDiscoveryService
 
     private fun validMetadata(): SteamoddedManifest = SteamoddedManifest(
         id = ModId("test_mod"),
@@ -29,19 +33,22 @@ class ManifestDiscoveryTest {
         assertTrue(validating { metadata.constraints()} is Valid)
     }
 
+    @BeforeTest
+    fun setUp() {
+        fs = FakeFileSystem()
+        modDiscoveryService = ModDiscoveryService(fs)
+    }
+
 
     @Test
     fun tryParseAsBalatroManifest_handles_valid_manifest() {
-        val fs = FakeFileSystem()
         val manifestPath = "/test/manifest.json".toPath()
         fs.createDirectories(manifestPath.parent!!)
 
         val validManifest = validMetadata()
         with(fs) { manifestPath.writeToFile(Json.encodeToString(validManifest)) }
 
-        val metadata = with(fs) {
-            tryParseAsBalatroManifest(manifestPath)
-        }
+        val metadata = modDiscoveryService.tryParseAsSteamoddedManifest(manifestPath)
 
         assertEquals("test_mod", metadata?.id?.value)
         assertEquals("Test Mod", metadata?.name?.value)
@@ -50,23 +57,18 @@ class ManifestDiscoveryTest {
 
     @Test
     fun tryParseAsBalatroManifest_handles_invalid_json() {
-        val fs = FakeFileSystem()
         val manifestPath = "/test/invalid.json".toPath()
         fs.createDirectories(manifestPath.parent!!)
 
         with(fs) { manifestPath.writeToFile("{ invalid json }") }
 
-        // Use original tryParseAsBalatroManifest function with FileSystem context
-        val result = with(fs) {
-            tryParseAsBalatroManifest(manifestPath)
-        }
+        val result = modDiscoveryService.tryParseAsSteamoddedManifest(manifestPath)
 
         assertNull(result)
     }
 
     @Test
     fun tryParseAsBalatroManifest_handles_invalid_manifest_structure() {
-        val fs = FakeFileSystem()
         val manifestPath = "/test/invalid_structure.json".toPath()
         fs.createDirectories(manifestPath.parent!!)
 
@@ -79,41 +81,33 @@ class ManifestDiscoveryTest {
 
         with(fs) { manifestPath.writeToFile(invalidJson) }
 
-        val result = with(fs) {
-            tryParseAsBalatroManifest(manifestPath)
-        }
+        val result = modDiscoveryService.tryParseAsSteamoddedManifest(manifestPath)
 
         assertNull(result)
     }
 
     @Test
     fun tryParseAsBalatroManifest_handles_valid_structure_but_invalid_metadata() {
-        val fs = FakeFileSystem()
         val manifestPath = "/test/invalid_metadata.json".toPath()
         fs.createDirectories(manifestPath.parent!!)
 
         val invalidMetadata = validMetadata().copy(id = ModId(""))
         with(fs) { manifestPath.writeToFile(Json.encodeToString(invalidMetadata)) }
 
-        val result = with(fs) {
-            tryParseAsBalatroManifest(manifestPath)
-        }
+        val result = modDiscoveryService.tryParseAsSteamoddedManifest(manifestPath)
 
         assertNull(result)
     }
 
     @Test
     fun tryParseAsBalatroManifest_ignores_valid_structure_with_invalid_metadata_if_strict_is_false() {
-        val fs = FakeFileSystem()
         val manifestPath = "/test/invalid_metadata.json".toPath()
         fs.createDirectories(manifestPath.parent!!)
 
         val invalidMetadata = validMetadata().copy(id = ModId(""))
         with(fs) { manifestPath.writeToFile(Json.encodeToString(invalidMetadata)) }
 
-        val result = with(fs) {
-            tryParseAsBalatroManifest(manifestPath, strict = false)
-        }
+        val result = modDiscoveryService.tryParseAsSteamoddedManifest(manifestPath, strict = false)
 
         assertTrue(validating { invalidMetadata.constraints() } is Invalid)
         assertNotNull(result)
@@ -121,7 +115,6 @@ class ManifestDiscoveryTest {
 
     @Test
     fun discoverManifests_complex_scenario() {
-        val fs = FakeFileSystem()
         val root = "/project".toPath()
         fs.createDirectories(root)
 
@@ -186,30 +179,32 @@ class ManifestDiscoveryTest {
             (root / "package.json").writeToFile("""{"name": "not-a-manifest"}""")
         }
 
-        // Use original discoverManifests function with FileSystem context
-        val discovered = with(fs) {
-            discoverManifests(root)
-        }
+        val discovered = modDiscoveryService.discoverMods(root)
 
         assertEquals(2, discovered.size)
-        assertTrue(discovered.any { it.metadata.id.value == "awesome_mod" })
-        assertTrue(discovered.any { it.metadata.id.value == "helper_mod" })
-        assertFalse(discovered.any { it.metadata.id.value == "ignored_mod" })
+        assertTrue(discovered.any { it.metadata?.id?.value == "awesome_mod" })
+        assertTrue(discovered.any { it.metadata?.id?.value == "helper_mod" })
+        assertFalse(discovered.any { it.metadata?.id?.value == "ignored_mod" })
 
         // Verify that the ignored manifest is actually valid and would be discovered if gitignore was disabled
-        val discoveredWithoutGitignore = with(fs) {
-            discoverManifests(root, respectGitignore = false)
-        }
+        val discoveredWithoutGitignore = modDiscoveryService.discoverMods(root, respectGitignore = false)
 
         assertEquals(3, discoveredWithoutGitignore.size)
-        assertTrue(discoveredWithoutGitignore.any { it.metadata.id.value == "awesome_mod" })
-        assertTrue(discoveredWithoutGitignore.any { it.metadata.id.value == "helper_mod" })
-        assertTrue(discoveredWithoutGitignore.any { it.metadata.id.value == "ignored_mod" })
+        assertTrue(discoveredWithoutGitignore.any { it.metadata?.id?.value == "awesome_mod" })
+        assertTrue(discoveredWithoutGitignore.any { it.metadata?.id?.value == "helper_mod" })
+        assertTrue(discoveredWithoutGitignore.any { it.metadata?.id?.value == "ignored_mod" })
+
+        // Verify invariant: no DiscoveredManifest should have both null metadata and false hasLovelyPatches
+        discovered.forEach { manifest ->
+            assertFalse(
+                manifest.metadata == null && !manifest.hasLovelyPatches,
+                "DiscoveredManifest cannot have both null metadata and no lovely patches"
+            )
+        }
     }
 
     @Test
     fun discoverManifests_handles_additional_ignores() {
-        val fs = FakeFileSystem()
         val root = "/project".toPath()
         fs.createDirectories(root)
 
@@ -226,12 +221,183 @@ class ManifestDiscoveryTest {
             customIgnoredPath.writeToFile(Json.encodeToString(validMetadata().copy(id = ModId("custom_ignored_mod"))))
         }
 
-        // Use original discoverManifests function with FileSystem context and additional ignores
-        val discovered = with(fs) {
-            discoverManifests(root, respectGitignore = true, additionalIgnores = listOf("custom_ignored"))
-        }
+        val discovered = modDiscoveryService.discoverMods(root, additionalIgnores = listOf("custom_ignored"))
 
         assertEquals(1, discovered.size)
-        assertEquals("allowed_mod", discovered[0].metadata.id.value)
+        assertEquals("allowed_mod", discovered[0].metadata?.id?.value)
+    }
+
+    @Test
+    fun discoverMods_finds_lovely_patches_without_manifest() {
+        val root = "/project".toPath()
+        fs.createDirectories(root)
+
+        // Create mod with only lovely directory
+        val lovelyModPath = root / "lovely_mod" / "lovely"
+        fs.createDirectories(lovelyModPath)
+
+        val discovered = modDiscoveryService.discoverMods(root)
+
+        assertEquals(1, discovered.size)
+        assertNull(discovered[0].metadata)
+        assertTrue(discovered[0].hasLovelyPatches)
+        assertEquals(root / "lovely_mod", discovered[0].path)
+    }
+
+    @Test
+    fun discoverMods_finds_lovely_patches_alongside_manifest() {
+        val root = "/project".toPath()
+        fs.createDirectories(root)
+
+        // Create mod with both manifest and lovely directory
+        val hybridModPath = root / "hybrid_mod"
+        fs.createDirectories(hybridModPath)
+
+        val manifestPath = hybridModPath / "manifest.json"
+        with(fs) {
+            manifestPath.writeToFile(
+                Json.encodeToString(
+                    validMetadata().copy(
+                        id = ModId("hybrid_mod"),
+                        name = ModName("Hybrid Mod")
+                    )
+                )
+            )
+        }
+
+        val lovelyPath = hybridModPath / "lovely"
+        fs.createDirectories(lovelyPath)
+
+        val discovered = modDiscoveryService.discoverMods(root)
+
+        assertEquals(1, discovered.size)
+        assertNotNull(discovered[0].metadata)
+        assertEquals("hybrid_mod", discovered[0].metadata?.id?.value)
+        assertTrue(discovered[0].hasLovelyPatches)
+        assertEquals(hybridModPath, discovered[0].path)
+    }
+
+    @Test
+    fun discoverMods_detects_lovely_case_insensitive() {
+        val root = "/project".toPath()
+        fs.createDirectories(root)
+
+        // Create mods with different case variations of lovely
+        val mod1 = root / "mod1" / "LOVELY"
+        fs.createDirectories(mod1)
+
+        val mod2 = root / "mod2" / "Lovely"
+        fs.createDirectories(mod2)
+
+        val mod3 = root / "mod3" / "LoVeLy"
+        fs.createDirectories(mod3)
+
+        val discovered = modDiscoveryService.discoverMods(root)
+
+        assertEquals(3, discovered.size)
+        assertTrue(discovered.all { it.hasLovelyPatches })
+        assertTrue(discovered.all { it.metadata == null })
+    }
+
+    @Test
+    fun discoverMods_lovely_respects_gitignore() {
+        val root = "/project".toPath()
+        fs.createDirectories(root)
+
+        // Create gitignore
+        with(fs) {
+            (root / ".gitignore").writeToFile("ignored/")
+        }
+
+        // Create lovely mod in normal path
+        val normalModPath = root / "normal_mod" / "lovely"
+        fs.createDirectories(normalModPath)
+
+        // Create lovely mod in ignored path
+        val ignoredModPath = root / "ignored" / "ignored_mod" / "lovely"
+        fs.createDirectories(ignoredModPath)
+
+        val discovered = modDiscoveryService.discoverMods(root)
+
+        assertEquals(1, discovered.size)
+        assertEquals(root / "normal_mod", discovered[0].path)
+        assertTrue(discovered[0].hasLovelyPatches)
+
+        // Verify that disabling gitignore includes both
+        val discoveredWithoutGitignore = modDiscoveryService.discoverMods(root, respectGitignore = false)
+        assertEquals(2, discoveredWithoutGitignore.size)
+    }
+
+    @Test
+    fun discoverMods_mixed_lovely_and_manifest_combinations() {
+        val root = "/project".toPath()
+        fs.createDirectories(root)
+
+        // Manifest only
+        val manifestOnlyPath = root / "manifest_only" / "manifest.json"
+        fs.createDirectories(manifestOnlyPath.parent!!)
+        with(fs) {
+            manifestOnlyPath.writeToFile(
+                Json.encodeToString(
+                    validMetadata().copy(
+                        id = ModId("manifest_only"),
+                        name = ModName("Manifest Only")
+                    )
+                )
+            )
+        }
+
+        // Lovely only
+        val lovelyOnlyPath = root / "lovely_only" / "lovely"
+        fs.createDirectories(lovelyOnlyPath)
+
+        // Hybrid: both manifest and lovely
+        val hybridPath = root / "hybrid"
+        fs.createDirectories(hybridPath)
+        with(fs) {
+            (hybridPath / "manifest.json").writeToFile(
+                Json.encodeToString(
+                    validMetadata().copy(
+                        id = ModId("hybrid"),
+                        name = ModName("Hybrid")
+                    )
+                )
+            )
+        }
+        fs.createDirectories(hybridPath / "lovely")
+
+        // Neither manifest nor lovely (should not be discovered)
+        val neitherPath = root / "neither" / "some_file.txt"
+        fs.createDirectories(neitherPath.parent!!)
+        with(fs) {
+            neitherPath.writeToFile("just a random file")
+        }
+
+        val discovered = modDiscoveryService.discoverMods(root)
+
+        assertEquals(3, discovered.size)
+
+        val manifestOnly = discovered.find { it.path == root / "manifest_only" }
+        assertNotNull(manifestOnly)
+        assertEquals("manifest_only", manifestOnly.metadata?.id?.value)
+        assertFalse(manifestOnly.hasLovelyPatches)
+
+        val lovelyOnly = discovered.find { it.path == root / "lovely_only" }
+        assertNotNull(lovelyOnly)
+        assertNull(lovelyOnly.metadata)
+        assertTrue(lovelyOnly.hasLovelyPatches)
+
+        val hybrid = discovered.find { it.path == root / "hybrid" }
+        assertNotNull(hybrid)
+        assertEquals("hybrid", hybrid.metadata?.id?.value)
+        assertTrue(hybrid.hasLovelyPatches)
+
+        // Verify no invalid states exist
+        discovered.forEach { manifest ->
+            assertFalse(
+                manifest.metadata == null && !manifest.hasLovelyPatches,
+                "DiscoveredManifest cannot have both null metadata and no lovely patches"
+            )
+        }
     }
 }
