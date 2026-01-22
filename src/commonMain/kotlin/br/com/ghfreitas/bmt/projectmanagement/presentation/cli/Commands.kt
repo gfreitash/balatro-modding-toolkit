@@ -19,6 +19,7 @@ import com.github.ajalt.clikt.parameters.options.multiple
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.mordant.terminal.Terminal
 import com.github.ajalt.mordant.terminal.prompt
+import kotlinx.coroutines.runBlocking
 import okio.FileSystem
 import okio.SYSTEM
 
@@ -115,36 +116,47 @@ private fun CliktCommand.findAndRegisterMods(
     terminal: Terminal,
     noGitignore: Boolean,
     ignore: List<String>
-) {
-    val result = attempt {
+) = runBlocking {
+    val decisions = mutableListOf<ModRegistrationDecision>()
+
+    // Use attempt to handle potential Raise/Either errors from projectService
+    val flowResult = attempt {
         projectService.discoverNewMods(
             respectGitignore = !noGitignore,
             additionalIgnores = ignore
         )
     }
-    if (result.isFailure()) return handleError(result.value)
 
-    val newMods = result.value
-    if (newMods.isEmpty()) {
-        echo("No new mods found")
-        return
+    if (flowResult.isFailure()) {
+        handleError(flowResult.value)
+        return@runBlocking
     }
 
-    val decisions = newMods.map { mod ->
+    // Collect the flow as it emits new mods
+    flowResult.value.collect { mod ->
         echo("Found mod: ${mod.name} at ${mod.path}")
+
         val include = terminal.prompt(
             "Include this mod in the project?",
             choices = listOf("y", "N"),
             default = "N"
         ).let { (it ?: "n").lowercase() == "y" }
 
-        ModRegistrationDecision(
-            name = mod.name,
-            path = mod.path,
-            included = include
+        decisions.add(
+            ModRegistrationDecision(
+                name = mod.name,
+                path = mod.path,
+                included = include
+            )
         )
     }
 
+    if (decisions.isEmpty()) {
+        echo("No new mods found")
+        return@runBlocking
+    }
+
+    // Register all collected decisions at once
     when (val registerResult = attempt { projectService.registerDiscoveredMods(decisions) }) {
         is Success -> echo("Mods registered successfully")
         is Failure -> handleError(registerResult.value)

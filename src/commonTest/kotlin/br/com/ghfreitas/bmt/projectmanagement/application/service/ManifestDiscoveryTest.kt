@@ -4,9 +4,10 @@ import br.com.ghfreitas.bmt.common.domain.valueobjects.Invalid
 import br.com.ghfreitas.bmt.common.domain.valueobjects.Valid
 import br.com.ghfreitas.bmt.common.domain.valueobjects.validating
 import br.com.ghfreitas.bmt.common.infrastructure.writeToFile
-import br.com.ghfreitas.bmt.projectmanagement.application.service.ModDiscoveryService
 import br.com.ghfreitas.bmt.projectmanagement.domain.model.ModAuthor
 import br.com.ghfreitas.bmt.projectmanagement.domain.model.steamodded.*
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import okio.FileSystem
 import okio.Path.Companion.toPath
@@ -114,7 +115,7 @@ class ManifestDiscoveryTest {
     }
 
     @Test
-    fun discoverManifests_complex_scenario() {
+    fun discoverManifests_complex_scenario() = runTest {
         val root = "/project".toPath()
         fs.createDirectories(root)
 
@@ -179,7 +180,7 @@ class ManifestDiscoveryTest {
             (root / "package.json").writeToFile("""{"name": "not-a-manifest"}""")
         }
 
-        val discovered = modDiscoveryService.discoverMods(root)
+        val discovered = modDiscoveryService.discoverMods(root).toList()
 
         assertEquals(2, discovered.size)
         assertTrue(discovered.any { it.metadata?.id?.value == "awesome_mod" })
@@ -187,7 +188,7 @@ class ManifestDiscoveryTest {
         assertFalse(discovered.any { it.metadata?.id?.value == "ignored_mod" })
 
         // Verify that the ignored manifest is actually valid and would be discovered if gitignore was disabled
-        val discoveredWithoutGitignore = modDiscoveryService.discoverMods(root, respectGitignore = false)
+        val discoveredWithoutGitignore = modDiscoveryService.discoverMods(root, respectGitignore = false).toList()
 
         assertEquals(3, discoveredWithoutGitignore.size)
         assertTrue(discoveredWithoutGitignore.any { it.metadata?.id?.value == "awesome_mod" })
@@ -204,7 +205,7 @@ class ManifestDiscoveryTest {
     }
 
     @Test
-    fun discoverManifests_handles_additional_ignores() {
+    fun discoverManifests_handles_additional_ignores() = runTest {
         val root = "/project".toPath()
         fs.createDirectories(root)
 
@@ -221,14 +222,14 @@ class ManifestDiscoveryTest {
             customIgnoredPath.writeToFile(Json.encodeToString(validMetadata().copy(id = ModId("custom_ignored_mod"))))
         }
 
-        val discovered = modDiscoveryService.discoverMods(root, additionalIgnores = listOf("custom_ignored"))
+        val discovered = modDiscoveryService.discoverMods(root, additionalIgnores = listOf("custom_ignored")).toList()
 
         assertEquals(1, discovered.size)
         assertEquals("allowed_mod", discovered[0].metadata?.id?.value)
     }
 
     @Test
-    fun discoverMods_finds_lovely_patches_without_manifest() {
+    fun discoverMods_finds_lovely_patches_without_manifest() = runTest {
         val root = "/project".toPath()
         fs.createDirectories(root)
 
@@ -236,7 +237,7 @@ class ManifestDiscoveryTest {
         val lovelyModPath = root / "lovely_mod" / "lovely"
         fs.createDirectories(lovelyModPath)
 
-        val discovered = modDiscoveryService.discoverMods(root)
+        val discovered = modDiscoveryService.discoverMods(root).toList()
 
         assertEquals(1, discovered.size)
         assertNull(discovered[0].metadata)
@@ -245,7 +246,7 @@ class ManifestDiscoveryTest {
     }
 
     @Test
-    fun discoverMods_finds_lovely_patches_alongside_manifest() {
+    fun discoverMods_finds_lovely_patches_alongside_manifest() = runTest {
         val root = "/project".toPath()
         fs.createDirectories(root)
 
@@ -268,7 +269,7 @@ class ManifestDiscoveryTest {
         val lovelyPath = hybridModPath / "lovely"
         fs.createDirectories(lovelyPath)
 
-        val discovered = modDiscoveryService.discoverMods(root)
+        val discovered = modDiscoveryService.discoverMods(root).toList()
 
         assertEquals(1, discovered.size)
         assertNotNull(discovered[0].metadata)
@@ -278,7 +279,7 @@ class ManifestDiscoveryTest {
     }
 
     @Test
-    fun discoverMods_detects_lovely_case_insensitive() {
+    fun discoverMods_detects_lovely_case_insensitive() = runTest {
         val root = "/project".toPath()
         fs.createDirectories(root)
 
@@ -292,7 +293,7 @@ class ManifestDiscoveryTest {
         val mod3 = root / "mod3" / "LoVeLy"
         fs.createDirectories(mod3)
 
-        val discovered = modDiscoveryService.discoverMods(root)
+        val discovered = modDiscoveryService.discoverMods(root).toList()
 
         assertEquals(3, discovered.size)
         assertTrue(discovered.all { it.hasLovelyPatches })
@@ -300,7 +301,7 @@ class ManifestDiscoveryTest {
     }
 
     @Test
-    fun discoverMods_lovely_respects_gitignore() {
+    fun discoverMods_lovely_respects_gitignore() = runTest {
         val root = "/project".toPath()
         fs.createDirectories(root)
 
@@ -317,19 +318,19 @@ class ManifestDiscoveryTest {
         val ignoredModPath = root / "ignored" / "ignored_mod" / "lovely"
         fs.createDirectories(ignoredModPath)
 
-        val discovered = modDiscoveryService.discoverMods(root)
+        val discovered = modDiscoveryService.discoverMods(root).toList()
 
         assertEquals(1, discovered.size)
         assertEquals(root / "normal_mod", discovered[0].path)
         assertTrue(discovered[0].hasLovelyPatches)
 
         // Verify that disabling gitignore includes both
-        val discoveredWithoutGitignore = modDiscoveryService.discoverMods(root, respectGitignore = false)
+        val discoveredWithoutGitignore = modDiscoveryService.discoverMods(root, respectGitignore = false).toList()
         assertEquals(2, discoveredWithoutGitignore.size)
     }
 
     @Test
-    fun discoverMods_mixed_lovely_and_manifest_combinations() {
+    fun discoverMods_mixed_lovely_and_manifest_combinations() = runTest {
         val root = "/project".toPath()
         fs.createDirectories(root)
 
@@ -373,7 +374,7 @@ class ManifestDiscoveryTest {
             neitherPath.writeToFile("just a random file")
         }
 
-        val discovered = modDiscoveryService.discoverMods(root)
+        val discovered = modDiscoveryService.discoverMods(root).toList()
 
         assertEquals(3, discovered.size)
 

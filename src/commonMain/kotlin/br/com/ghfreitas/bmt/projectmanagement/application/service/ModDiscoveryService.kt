@@ -1,10 +1,9 @@
 package br.com.ghfreitas.bmt.projectmanagement.application.service
 
-import br.com.ghfreitas.bmt.common.domain.service.IgnoreLogicService
-import br.com.ghfreitas.bmt.common.domain.valueobjects.FileSystemEntry
 import br.com.ghfreitas.bmt.common.domain.valueobjects.Invalid
 import br.com.ghfreitas.bmt.common.domain.valueobjects.Valid
 import br.com.ghfreitas.bmt.common.domain.valueobjects.validating
+import br.com.ghfreitas.bmt.common.infrastructure.FileSystemEntry
 import br.com.ghfreitas.bmt.common.infrastructure.GitIgnoreScanner
 import br.com.ghfreitas.bmt.common.infrastructure.readAsString
 import br.com.ghfreitas.bmt.projectmanagement.application.model.DiscoveredManifest
@@ -13,10 +12,9 @@ import co.touchlab.kermit.Logger
 import co.touchlab.kermit.Severity
 import co.touchlab.kermit.loggerConfigInit
 import co.touchlab.kermit.platformLogWriter
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.mapNotNull
-import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.json.Json
 import okio.FileSystem
 import okio.Path
@@ -51,47 +49,65 @@ class ModDiscoveryService(
      *        Note: .git/ and .bmt.json are always excluded.
      * @return A list of discovered manifests, each containing the file path and its metadata.
      */
-    fun discoverMods(
+    suspend fun discoverMods(
         rootPath: Path,
         respectGitignore: Boolean = true,
         additionalIgnores: List<String> = emptyList()
-    ): List<DiscoveredManifest> {
+    ): Flow<DiscoveredManifest> {
         val baseIgnorePatterns = listOf(".git/", ".bmt.json")
         val allPatterns = baseIgnorePatterns + additionalIgnores.toList()
 
-        val parser = GitIgnoreScanner(
+        val parser = GitIgnoreScanner.create(
             fileSystem = fileSystem,
             rootPath = rootPath,
             additionalPatterns = allPatterns,
             ignoreGitIgnore = !respectGitignore,
-            logicService = IgnoreLogicService()
         )
 
         return discoverModsWithParser(parser)
     }
 
-    private fun discoverModsWithParser(parser: GitIgnoreScanner): List<DiscoveredManifest> = runBlocking {
-        fun FileSystemEntry.isJson() = isDirectory.not() && path.name.endsWith(".json")
-        fun FileSystemEntry.isLovelyDir() = isDirectory && path.name.lowercase() == "lovely" && path.parent != null
-        fun FileSystemEntry.isNotIgnored() = gitignoreResult.isIgnored.not()
+    private fun discoverModsWithParser(parser: GitIgnoreScanner): Flow<DiscoveredManifest> = flow {
+        // Map to accumulate files for the directory currently being scanned
+        val currentFolderEntries = mutableListOf<FileSystemEntry>()
+        var lastParent: Path? = null
 
-        parser.scan()
-            .filter { it.isNotIgnored() && (it.isJson() || it.isLovelyDir()) }
-            .mapNotNull { entry -> entry.path.parent?.let { it to entry } }
-            .toList()
-            .groupBy({ it.first }, { it.second })
-            .mapNotNull { (modPath, entries) ->
-                val manifest = entries
-                    .filter { it.isJson() }
-                    .firstNotNullOfOrNull { tryParseAsSteamoddedManifest(it.path) }
+        parser.dfs()
+            .filter { it.gitignoreResult.isIgnored.not() }
+            .collect { entry ->
+                val currentParent = entry.path.parent
 
-                val hasLovelyPatches = entries.any { it.isLovelyDir() }
-
-                when {
-                    manifest != null || hasLovelyPatches -> DiscoveredManifest(modPath, manifest, hasLovelyPatches)
-                    else -> null
+                // Heuristic: If the parent changes, the previous folder's scan is likely finished
+                if (lastParent != null && currentParent != lastParent) {
+                    emitFolderIfValid(lastParent!!, currentFolderEntries)?.let { emit(it) }
+                    currentFolderEntries.clear()
                 }
+
+                // Collect entries that matter for mod discovery
+                if (entry.path.name.endsWith(".json") ||
+                    (entry.isDirectory && entry.path.name.lowercase() == "lovely")) {
+                    currentFolderEntries.add(entry)
+                }
+
+                lastParent = currentParent
             }
+
+        // Remember of the last folder in the stack!
+        lastParent?.let {
+            emitFolderIfValid(it, currentFolderEntries)?.let { emit(it) }
+        }
+    }
+
+    private fun emitFolderIfValid(modPath: Path, entries: List<FileSystemEntry>): DiscoveredManifest? {
+        val manifest = entries
+            .filter { !it.isDirectory && it.path.name.endsWith(".json") }
+            .firstNotNullOfOrNull { tryParseAsSteamoddedManifest(it.path) }
+
+        val hasLovely = entries.any { it.isDirectory && it.path.name.lowercase() == "lovely" }
+
+        return if (manifest != null || hasLovely) {
+            DiscoveredManifest(modPath, manifest, hasLovely)
+        } else null
     }
 
     /**

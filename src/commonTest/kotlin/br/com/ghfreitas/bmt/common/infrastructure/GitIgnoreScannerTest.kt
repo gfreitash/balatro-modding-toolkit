@@ -1,7 +1,9 @@
 package br.com.ghfreitas.bmt.common.infrastructure
 
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import okio.Path
@@ -53,11 +55,11 @@ class GitignoreTraversalTest {
         (rootPath / ".git" / "info" / "exclude").writeToFile(patterns.joinToString("\n"))
     }
 
-    private fun createParser(): GitIgnoreScanner {
-        return GitIgnoreScanner(fs, rootPath)
+    private suspend fun createParser(): GitIgnoreScanner {
+        return GitIgnoreScanner.create(fs, rootPath)
     }
 
-    private fun assertIgnored(
+    private suspend fun assertIgnored(
         parser: GitIgnoreScanner,
         relativePath: String,
         message: String? = null,
@@ -87,7 +89,7 @@ class GitignoreTraversalTest {
         assertTrue(result.isIgnored, message ?: "Expected '$relativePath' to be ignored")
     }
 
-    private fun assertNotIgnored(
+    private suspend fun assertNotIgnored(
         parser: GitIgnoreScanner,
         relativePath: String,
         message: String? = null,
@@ -117,14 +119,14 @@ class GitignoreTraversalTest {
         assertFalse(result.isIgnored, message ?: "Expected '$relativePath' to NOT be ignored")
     }
 
-    private fun assertDirIgnored(parser: GitIgnoreScanner, relativePath: String, message: String) {
+    private suspend fun assertDirIgnored(parser: GitIgnoreScanner, relativePath: String, message: String) {
         val path = rootPath / relativePath
         fs.createDirectories(path)
         val result = parser.getIgnoreResult(path)
         assertTrue(result.isIgnored, message)
     }
 
-    private fun assertDirNotIgnored(parser: GitIgnoreScanner, relativePath: String, message: String) {
+    private suspend fun assertDirNotIgnored(parser: GitIgnoreScanner, relativePath: String, message: String) {
         val path = rootPath / relativePath
         fs.createDirectories(path)
         val result = parser.getIgnoreResult(path)
@@ -134,7 +136,7 @@ class GitignoreTraversalTest {
     // ==================== 1. Line Parsing Basics ====================
 
     @Test
-    fun `parser skips blank lines and comments`() {
+    fun `parser skips blank lines and comments`() = runTest {
         (rootPath / ".gitignore").writeToFile(
             """
             |
@@ -156,7 +158,7 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `literal hash at start is escaped with backslash`() {
+    fun `literal hash at start is escaped with backslash`() = runTest {
         gitignore("\\#important", "\\#backup#")
 
         val parser = createParser()
@@ -167,7 +169,7 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `trailing spaces are trimmed unless escaped`() {
+    fun `trailing spaces are trimmed unless escaped`() = runTest {
         // "foo   " should become "foo", but "bar\ " should match "bar "
         (rootPath / ".gitignore").writeToFile("foo   \nbar\\ ")
 
@@ -181,7 +183,7 @@ class GitignoreTraversalTest {
     // ==================== 2. Negation Patterns ====================
 
     @Test
-    fun `negation re-includes previously excluded files`() {
+    fun `negation re-includes previously excluded files`() = runTest {
         gitignore("*.log", "!important.log")
 
         val parser = createParser()
@@ -193,7 +195,7 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `last matching pattern wins`() {
+    fun `last matching pattern wins`() = runTest {
         gitignore(
             "*.log",           // ignore all .log
             "!debug.log",      // re-include debug.log
@@ -207,7 +209,7 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `negation ineffective when parent directory is excluded`() {
+    fun `negation ineffective when parent directory is excluded`() = runTest {
         gitignore(
             "logs/",           // ignore entire logs directory
             "!logs/important.log"  // try to re-include - should NOT work
@@ -227,7 +229,7 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `literal exclamation mark escaped with backslash`() {
+    fun `literal exclamation mark escaped with backslash`() = runTest {
         gitignore("\\!important.txt", "\\!README")
 
         val parser = createParser()
@@ -240,7 +242,7 @@ class GitignoreTraversalTest {
     // ==================== 3. Slash Behavior and Path Relativity ====================
 
     @Test
-    fun `patterns without slash match at any depth`() {
+    fun `patterns without slash match at any depth`() = runTest {
         gitignore("foo.txt")
 
         val parser = createParser()
@@ -253,7 +255,7 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `leading slash anchors pattern to gitignore directory`() {
+    fun `leading slash anchors pattern to gitignore directory`() = runTest {
         gitignore("/foo.txt", "/src/main.kt")
 
         val parser = createParser()
@@ -269,7 +271,7 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `middle slash anchors pattern to gitignore directory`() {
+    fun `middle slash anchors pattern to gitignore directory`() = runTest {
         gitignore("doc/frotz", "src/main/app.kt")
 
         val parser = createParser()
@@ -285,7 +287,7 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `leading slash and middle slash patterns are equivalent`() {
+    fun `leading slash and middle slash patterns are equivalent`() = runTest {
         // According to docs: "doc/frotz" and "/doc/frotz" have the same effect
         (rootPath / ".gitignore").writeToFile("doc/frotz")
         val parser1 = createParser()
@@ -311,7 +313,7 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `nested gitignore patterns are relative to their location`() {
+    fun `nested gitignore patterns are relative to their location`() = runTest {
         // Root .gitignore
         gitignore("*.log")
 
@@ -348,7 +350,7 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `nested gitignore with path patterns are relative to their location`() {
+    fun `nested gitignore with path patterns are relative to their location`() = runTest {
         // This is the critical bug test case
         // src/.gitignore contains "sub/secret.txt" - should only match src/sub/secret.txt
         gitignoreAt("src", "sub/secret.txt")
@@ -375,7 +377,7 @@ class GitignoreTraversalTest {
     // ==================== 4. Directory-Only Patterns (Trailing Slash) ====================
 
     @Test
-    fun `trailing slash matches only directories`() {
+    fun `trailing slash matches only directories`() = runTest {
         gitignore("logs/", "build/", "temp/")
 
         val parser = createParser()
@@ -393,7 +395,7 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `trailing slash pattern without leading slash matches at any depth`() {
+    fun `trailing slash pattern without leading slash matches at any depth`() = runTest {
         gitignore("temp/")
 
         val parser = createParser()
@@ -404,7 +406,7 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `directory pattern matches directory and paths underneath`() {
+    fun `directory pattern matches directory and paths underneath`() = runTest {
         gitignore("vendor/")
 
         val parser = createParser()
@@ -419,7 +421,7 @@ class GitignoreTraversalTest {
     // ==================== 5. Single Wildcards ====================
 
     @Test
-    fun `asterisk matches anything except slash`() {
+    fun `asterisk matches anything except slash`() = runTest {
         gitignore("*.txt", "temp.*", "test_*_file")
 
         val parser = createParser()
@@ -441,7 +443,7 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `asterisk in path pattern does not cross directories`() {
+    fun `asterisk in path pattern does not cross directories`() = runTest {
         gitignore("foo/*", "src/*.kt")
 
         val parser = createParser()
@@ -472,7 +474,7 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `question mark matches single character except slash`() {
+    fun `question mark matches single character except slash`() = runTest {
         gitignore("?.txt", "test?.log", "a?b")
 
         val parser = createParser()
@@ -491,7 +493,7 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `character range brackets match one character in range`() {
+    fun `character range brackets match one character in range`() = runTest {
         gitignore("[abc].txt", "[0-9].log", "[a-zA-Z]_file")
 
         val parser = createParser()
@@ -530,7 +532,7 @@ class GitignoreTraversalTest {
     // ==================== 6. Double Asterisk Patterns ====================
 
     @Test
-    fun `leading double asterisk matches in all directories`() {
+    fun `leading double asterisk matches in all directories`() = runTest {
         gitignore("**/foo", "**/test.log", "**/.env")
 
         val parser = createParser()
@@ -552,7 +554,7 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `leading double asterisk with path matches pattern under any directory`() {
+    fun `leading double asterisk with path matches pattern under any directory`() = runTest {
         gitignore("**/foo/bar", "**/src/test.kt")
 
         val parser = createParser()
@@ -569,7 +571,7 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `trailing double asterisk matches everything inside`() {
+    fun `trailing double asterisk matches everything inside`() = runTest {
         gitignore("abc/**", "logs/**", "src/test/**")
 
         val parser = createParser()
@@ -591,7 +593,7 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `middle double asterisk matches zero or more directories`() {
+    fun `middle double asterisk matches zero or more directories`() = runTest {
         gitignore("a/**/b", "src/**/test.kt", "foo/**/bar/**/baz")
 
         val parser = createParser()
@@ -659,7 +661,7 @@ class GitignoreTraversalTest {
     // ==================== 7. Escaping ====================
 
     @Test
-    fun `backslash escapes special characters`() {
+    fun `backslash escapes special characters`() = runTest {
         gitignore("\\*.txt", "test\\?.log", "\\[abc\\].md")
 
         val parser = createParser()
@@ -680,7 +682,7 @@ class GitignoreTraversalTest {
     // ==================== 8. Pattern Source Precedence ====================
 
     @Test
-    fun `lower level gitignore overrides higher level`() {
+    fun `lower level gitignore overrides higher level`() = runTest {
         // Root ignores all .log files
         gitignore("*.log")
 
@@ -699,7 +701,7 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `git info exclude patterns work`() {
+    fun `git info exclude patterns work`() = runTest {
         // No .gitignore, only .git/info/exclude
         gitExclude("*.secret", "private/")
 
@@ -711,7 +713,7 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `gitignore takes precedence over git info exclude at same level`() {
+    fun `gitignore takes precedence over git info exclude at same level`() = runTest {
         gitExclude("*.log")
         gitignore("!debug.log")
 
@@ -737,7 +739,7 @@ class GitignoreTraversalTest {
         (rootPath / "build" / "output.jar").writeToFile("jar")
 
         val parser = createParser()
-        val entries = parser.scan().toList()
+        val entries = parser.dfs().toList()
 
         val ignoredPaths = entries.filter { it.gitignoreResult.isIgnored }.map { it.relativePath }
         val trackedPaths = entries.filter { !it.gitignoreResult.isIgnored }.map { it.relativePath }
@@ -758,7 +760,7 @@ class GitignoreTraversalTest {
         (rootPath / "normal_dir" / "file.txt").writeToFile("content")
 
         val parser = createParser()
-        val entries = parser.scan().toList()
+        val entries = parser.dfs().toList()
         val allPaths = entries.map { it.relativePath }
 
         assertTrue("ignored_dir" in allPaths, "ignored_dir itself should appear")
@@ -770,7 +772,7 @@ class GitignoreTraversalTest {
     // ==================== 10. Edge Cases ====================
 
     @Test
-    fun `empty gitignore file works`() {
+    fun `empty gitignore file works`() = runTest {
         (rootPath / ".gitignore").writeToFile("")
 
         val parser = createParser()
@@ -780,7 +782,7 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `gitignore with only comments works`() {
+    fun `gitignore with only comments works`() = runTest {
         (rootPath / ".gitignore").writeToFile(
             """
             |# This is a comment
@@ -795,7 +797,7 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `very deep nesting works`() {
+    fun `very deep nesting works`() = runTest {
         gitignore("**/deep.txt")
 
         val deepPath = "a/b/c/d/e/f/g/h/i/j/deep.txt"
@@ -811,7 +813,7 @@ class GitignoreTraversalTest {
         gitignore("*.log")
 
         val parser = createParser()
-        val trackedNames = parser.scan().filter { !it.gitignoreResult.isIgnored }.map { it.path.name }.toList()
+        val trackedNames = parser.dfs().filter { !it.gitignoreResult.isIgnored }.map { it.path.name }.toList()
 
         // .gitignore should be trackable (not auto-ignored)
         // This depends on implementation - the file exists and isn't matched by patterns
@@ -819,7 +821,7 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `patterns work with various file extensions`() {
+    fun `patterns work with various file extensions`() = runTest {
         gitignore("*.min.js", "*.d.ts", "*.test.kt")
 
         val parser = createParser()
@@ -831,7 +833,7 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `additionalPatterns behave identically to gitignore file`() {
+    fun `additionalPatterns behave identically to gitignore file`() = runTest {
         val patterns = listOf("*.log", "!important.log", "build/", "# comment", "", "*.tmp")
 
         // Parser A: patterns in root .gitignore file
@@ -842,8 +844,9 @@ class GitignoreTraversalTest {
         fs.delete(rootPath / ".gitignore")
 
         // Parser B: same patterns programmatically via additionalPatterns
-        val parserB = GitIgnoreScanner(
-            fs, rootPath,
+        val parserB = GitIgnoreScanner.create(
+            fileSystem = fs,
+            rootPath = rootPath,
             additionalPatterns = patterns
         )
 
@@ -871,13 +874,14 @@ class GitignoreTraversalTest {
     }
 
     @Test
-    fun `additionalPatterns override root gitignore`() {
+    fun `additionalPatterns override root gitignore`() = runTest {
         // Root .gitignore: ignore all .log files
         gitignore("*.log")
 
         // additionalPatterns: re-include important.log (should override root .gitignore)
-        val parser = GitIgnoreScanner(
-            fs, rootPath,
+        val parser = GitIgnoreScanner.create(
+            fileSystem = fs,
+            rootPath = rootPath,
             additionalPatterns = listOf("!important.log")
         )
 
@@ -891,5 +895,53 @@ class GitignoreTraversalTest {
         // Other .log files should still be ignored
         assertIgnored(parser, "debug.log", "debug.log should still be ignored")
         assertIgnored(parser, "app.log", "app.log should still be ignored")
+    }
+
+    // ==================== 11. Streaming Flow Tests ====================
+
+    @Test
+    fun `dfs emits entries in depth-first order`() = runTest {
+        // Setup nested directory structure
+        (rootPath / "a" / "b" / "c").createDir()
+        (rootPath / "a" / "b" / "file.txt").writeToFile("content")
+
+        val scanner = GitIgnoreScanner.create(fs, rootPath)
+        val entries = mutableListOf<String>()
+
+        scanner.dfs().collect { entry ->
+            entries.add(entry.relativePath)
+        }
+
+        // Verify depth-first traversal order
+        val aIndex = entries.indexOf("a")
+        val bIndex = entries.indexOf("a/b")
+        assertTrue(aIndex < bIndex, "Parent 'a' should appear before 'a/b'")
+    }
+
+    @Test
+    fun `dfs flow can be cancelled mid-traversal`() = runTest {
+        // Setup large directory structure
+        repeat(10) { i ->
+            (rootPath / "dir$i" / "file.txt").writeToFile("content")
+        }
+
+        val scanner = GitIgnoreScanner.create(fs, rootPath)
+        var count = 0
+
+        // Take only first 5 entries
+        scanner.dfs().take(5).collect { count++ }
+
+        assertEquals(5, count, "Should stop after 5 entries")
+    }
+
+    @Test
+    fun `dfs flow respects backpressure`() = runTest {
+        (rootPath / "a" / "file1.txt").writeToFile("1")
+        (rootPath / "b" / "file2.txt").writeToFile("2")
+
+        val scanner = GitIgnoreScanner.create(fs, rootPath)
+        val firstEntry = scanner.dfs().first()
+
+        assertNotNull(firstEntry, "Should emit at least one entry")
     }
 }

@@ -1,89 +1,152 @@
 package br.com.ghfreitas.bmt.common.infrastructure
 
-import br.com.ghfreitas.bmt.common.domain.service.IgnoreLogicService
-import br.com.ghfreitas.bmt.common.domain.valueobjects.FileSystemEntry
-import br.com.ghfreitas.bmt.common.domain.valueobjects.GitIgnoreLevel
-import br.com.ghfreitas.bmt.common.domain.valueobjects.GitIgnorePattern
-import br.com.ghfreitas.bmt.common.domain.valueobjects.GitIgnoreResult
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.IO
+import br.com.ghfreitas.bmt.common.infrastructure.GitIgnoreScanner.Companion.create
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import okio.FileSystem
 import okio.Path
-import okio.SYSTEM
 
 /**
- * Infrastructure Service that coordinates IO and traversal.
+ * Scans a file system hierarchy to assess whether files or directories are ignored
+ * based on gitignore rules. The class supports recursive traversal, evaluates patterns
+ * hierarchically, and integrates additional programmatic patterns.
+ *
+ * This class is particularly useful for identifying excluded files or directories
+ * in Git repositories and similar projects that follow `.gitignore` conventions.
+ *
+ * @constructor Private constructor to ensure that instances are created through the
+ * [create] method, which initializes the scanner with appropriate patterns.
  */
-class GitIgnoreScanner(
-    private val fileSystem: FileSystem = FileSystem.SYSTEM,
+class GitIgnoreScanner private constructor(
+    private val fileSystem: FileSystem,
     private val rootPath: Path,
-    private val logicService: IgnoreLogicService = IgnoreLogicService(),
-    private val additionalPatterns: List<String> = emptyList(),
-    private val ignoreGitIgnore: Boolean = false
+    private val rootLevelPatterns: List<GitIgnorePattern>
 ) {
-    private val rootLevelPatterns = mutableListOf<GitIgnorePattern>()
     private val levelCache = mutableMapOf<Path, GitIgnoreLevel>()
 
-    init {
-        loadGlobalPatterns()
-    }
-
-    private fun loadGlobalPatterns() {
-        // Load .git/info/exclude
-        val excludeFile = rootPath / ".git" / "info" / "exclude"
-        if (fileSystem.exists(excludeFile)) {
-            rootLevelPatterns.addAll(parseGitIgnoreFile(excludeFile, baseDir = ""))
-        }
-
-        // Load root .gitignore
-        if (!ignoreGitIgnore) {
-            val rootGitignoreFile = rootPath / ".gitignore"
-            if (fileSystem.exists(rootGitignoreFile)) {
-                val patterns = parseGitIgnoreFile(rootGitignoreFile, baseDir = "")
-                rootLevelPatterns.addAll(patterns)
+    companion object {
+        context(fileSystem: FileSystem)
+        private fun parseGitIgnoreFile(path: Path, baseDir: String): List<GitIgnorePattern> {
+            val patterns = mutableListOf<GitIgnorePattern>()
+            fileSystem.read(path) {
+                readLines().forEachIndexed { index, line ->
+                    GitIgnorePattern.parse(line, path.toString(), index, baseDir)?.let {
+                        patterns.add(it)
+                    }
+                }
             }
+            return patterns
         }
 
-        // Load programmatic patterns
-        additionalPatterns.forEachIndexed { index, line ->
-            GitIgnorePattern.parse(line, "additional", index, "")?.let {
-                rootLevelPatterns.add(it)
+        /**
+         * Creates a new instance of [GitIgnoreScanner], which is responsible for identifying ignored files
+         * and directories in a file system based on gitignore patterns. This function loads and combines
+         * patterns from `.git/info/exclude`, the root `.gitignore` file (if not ignored), and any additional
+         * programmatically provided patterns.
+         *
+         * @param fileSystem The file system to use for file operations.
+         * @param rootPath The root path of the repository or directory being scanned.
+         * @param additionalPatterns A list of additional gitignore-style patterns to include in the scan.
+         * @param ignoreGitIgnore A flag indicating whether to ignore the root `.gitignore` file during pattern loading.
+         * @return A [GitIgnoreScanner] instance initialized with the loaded and combined gitignore patterns.
+         */
+        suspend fun create(
+            fileSystem: FileSystem,
+            rootPath: Path,
+            additionalPatterns: List<String> = emptyList(),
+            ignoreGitIgnore: Boolean = false
+        ) = withContext(Dispatchers.IO) {
+            val gitInfoExcludePatterns = async {
+                // Load .git/info/exclude
+                val patterns = mutableListOf<GitIgnorePattern>()
+                val excludeFile = rootPath / ".git" / "info" / "exclude"
+                with(fileSystem) {
+                    if (exists(excludeFile)) {
+                        patterns.addAll(parseGitIgnoreFile(excludeFile, baseDir = ""))
+                    }
+                }
+
+                patterns
             }
+
+            val rootIgnorePatterns = async {
+                // Load root .gitignore
+                val patterns = mutableListOf<GitIgnorePattern>()
+                if (!ignoreGitIgnore) {
+                    val rootGitignoreFile = rootPath / ".gitignore"
+                    with(fileSystem) {
+                        if (exists(rootGitignoreFile)) {
+                            patterns.addAll(parseGitIgnoreFile(rootGitignoreFile, baseDir = ""))
+                        }
+                    }
+                }
+
+                patterns
+            }
+
+            val additionalPatterns = async {
+                val patterns = mutableListOf<GitIgnorePattern>()
+                // Load programmatic patterns
+                additionalPatterns.forEachIndexed { index, line ->
+                    GitIgnorePattern.parse(line, "additional", index, "")?.let {
+                        patterns.add(it)
+                    }
+                }
+
+                patterns
+            }
+
+            val combinedPatterns = awaitAll(gitInfoExcludePatterns, rootIgnorePatterns, additionalPatterns).flatten()
+            GitIgnoreScanner(fileSystem, rootPath, combinedPatterns)
+        }
+
+
+        /**
+         * Determines if a path is ignored by coordinating the hierarchy between
+         * a parent's status and the current level's patterns.
+         */
+        private fun isPathIgnored(
+            path: Path,
+            rootPath: Path,
+            isDirectory: Boolean,
+            parentLevel: GitIgnoreLevel?,
+            currentLevel: GitIgnoreLevel
+        ): GitIgnoreResult {
+            val relativePath = path.relativeTo(rootPath).toString()
+
+            // 1. Check if the parent directory itself was excluded by an ancestor
+            if (parentLevel != null && path.parent != rootPath) {
+                val parentPath = path.parent ?: rootPath
+                val parentRelativePath = parentPath.relativeTo(rootPath).toString()
+
+                // In git, if a parent directory is ignored,
+                // no patterns inside it (even negations) can re-include children.
+                val (parentIsIgnored, parentMatchedPattern) = parentLevel.isIgnored(
+                    parentRelativePath,
+                    isDirectory = true
+                )
+
+                if (parentIsIgnored) {
+                    return GitIgnoreResult(
+                        isIgnored = true,
+                        matchedPattern = parentMatchedPattern,
+                        level = currentLevel
+                    )
+                }
+            }
+
+            // 2. Evaluate patterns at the current level
+            val (isIgnored, matchedPattern) = currentLevel.isIgnored(relativePath, isDirectory)
+
+            return GitIgnoreResult(
+                isIgnored = isIgnored,
+                matchedPattern = matchedPattern,
+                level = currentLevel
+            )
         }
     }
-
-    private suspend fun FlowCollector<FileSystemEntry>.traverseRecursive(
-        currentPath: Path,
-        relativePath: String
-    ) {
-        if (!fileSystem.exists(currentPath)) return
-
-        val children = try {
-            fileSystem.list(currentPath)
-        } catch (_: Exception) {
-            emptyList()
-        }
-
-        for (childPath in children) {
-            val metadata = fileSystem.metadataOrNull(childPath) ?: continue
-            val childRelative = if (relativePath.isEmpty()) childPath.name else "$relativePath/${childPath.name}"
-
-            val result = getIgnoreResult(childPath)
-            val entry = FileSystemEntry(childPath, childRelative, metadata.isDirectory, result)
-
-            emit(entry)
-
-            // Skip recursion if directory is ignored
-            if (metadata.isDirectory && !result.isIgnored) {
-                traverseRecursive(childPath, childRelative)
-            }
-        }
-    }
-
 
     /**
      * Traverses a file system hierarchy starting from a root path, emitting each file system entry
@@ -96,8 +159,44 @@ class GitIgnoreScanner(
      *
      * @return a [Flow] emitting [FileSystemEntry] objects representing the discovered file system entries
      */
-    fun scan(): Flow<FileSystemEntry> = flow {
-        traverseRecursive(rootPath, "")
+    fun dfs(): Flow<FileSystemEntry> = flow {
+        val stack = ArrayDeque<Pair<Path, String>>()
+
+        if (fileSystem.exists(rootPath)) {
+            stack.add(rootPath to "")
+        }
+
+        while (stack.isNotEmpty()) {
+            val (currentPath, currentRelative) = stack.removeLast()
+
+            val children = try {
+                fileSystem.list(currentPath)
+            } catch (_: Exception) {
+                emptyList()
+            }
+
+            for (childPath in children) {
+                // Check for cancellation at the start of each child
+                currentCoroutineContext().ensureActive()
+
+                val metadata = fileSystem.metadataOrNull(childPath) ?: continue
+                val childRelative = if (currentRelative.isEmpty()) {
+                    childPath.name
+                } else {
+                    "$currentRelative/${childPath.name}"
+                }
+
+                val result = getIgnoreResult(childPath)
+                val entry = FileSystemEntry(childPath, childRelative, metadata.isDirectory, result)
+
+                emit(entry)
+
+                // Depth-first traversal: push directories to the stack
+                if (metadata.isDirectory && !result.isIgnored) {
+                    stack.add(childPath to childRelative)
+                }
+            }
+        }
     }.flowOn(Dispatchers.IO)
 
     /**
@@ -108,26 +207,29 @@ class GitIgnoreScanner(
      * @return A [GitIgnoreResult] containing details about whether the path is ignored, the matched
      *         pattern (if any), and the evaluation level.
      */
-    fun getIgnoreResult(path: Path): GitIgnoreResult {
+    suspend fun getIgnoreResult(path: Path): GitIgnoreResult = withContext(Dispatchers.IO) {
         val parentDir = path.parent ?: rootPath
         val currentLevel = getOrCreateLevel(parentDir)
+        // blocking metadata call
         val isDirectory = fileSystem.metadataOrNull(path)?.isDirectory ?: false
 
-        // Find the parent level for hierarchical checking
         val grandParentDir = parentDir.parent
         val parentLevel = if (grandParentDir != null && parentDir != rootPath) {
             getOrCreateLevel(grandParentDir)
         } else null
 
-        return logicService.evaluate(path, rootPath, isDirectory, parentLevel, currentLevel)
+        isPathIgnored(path, rootPath, isDirectory, parentLevel, currentLevel)
     }
 
-    private fun getOrCreateLevel(dirPath: Path): GitIgnoreLevel {
-        return levelCache.getOrPut(dirPath) {
+    private suspend fun getOrCreateLevel(dirPath: Path): GitIgnoreLevel = withContext(Dispatchers.IO) {
+        // levelCache is a MutableMap, which is NOT thread-safe.
+        // Since we are using parallel-capable Dispatchers.IO,
+        // we should use a lock or a thread-safe map if we ever parallelize.
+        // For now, keeping it simple as scan() calls this sequentially.
+        levelCache.getOrPut(dirPath) {
             val relPath = dirPath.relativeTo(rootPath).toString()
             val patterns = mutableListOf<GitIgnorePattern>()
 
-            // Inherit patterns from parent
             val parent = dirPath.parent
             if (parent != null && parent != dirPath && rootPath != dirPath) {
                 patterns.addAll(getOrCreateLevel(parent).patterns)
@@ -135,25 +237,14 @@ class GitIgnoreScanner(
                 patterns.addAll(rootLevelPatterns)
             }
 
-            // Add local .gitignore
             val localGitignore = dirPath / ".gitignore"
-            if (fileSystem.exists(localGitignore)) {
-                patterns.addAll(parseGitIgnoreFile(localGitignore, relPath))
-            }
-
-            GitIgnoreLevel(patterns, dirPath, relPath)
-        }
-    }
-
-    private fun parseGitIgnoreFile(path: Path, baseDir: String): List<GitIgnorePattern> {
-        val patterns = mutableListOf<GitIgnorePattern>()
-        fileSystem.read(path) {
-            readLines().forEachIndexed { index, line ->
-                GitIgnorePattern.parse(line, path.toString(), index, baseDir)?.let {
-                    patterns.add(it)
+            // blocking exists call
+            with(fileSystem) {
+                if (fileSystem.exists(localGitignore)) {
+                    patterns.addAll(parseGitIgnoreFile(localGitignore, relPath))
                 }
             }
+            GitIgnoreLevel(patterns, dirPath, relPath)
         }
-        return patterns
     }
 }

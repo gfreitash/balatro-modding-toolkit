@@ -13,6 +13,9 @@ import br.com.ghfreitas.bmt.projectmanagement.application.repository.BMTProjectR
 import br.com.ghfreitas.bmt.projectmanagement.domain.model.bmtproject.BMTProject
 import br.com.ghfreitas.bmt.projectmanagement.domain.model.bmtproject.DiscoveredMod
 import br.com.ghfreitas.bmt.projectmanagement.domain.service.ModIdentityService
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filterNot
+import kotlinx.coroutines.flow.map
 import okio.FileSystem
 import okio.Path.Companion.toPath
 import kotlin.time.Clock
@@ -59,16 +62,6 @@ class ProjectService(
     }
 
     /**
-     * Checks if the project is already initialized and returns its status.
-     */
-    fun getProjectStatus(): ProjectStatusDTO? {
-        return when (val result = either { repository.load() }) {
-            is Success -> result.value.toStatusDTO()
-            is Failure -> null
-        }
-    }
-
-    /**
      * Ensures the project has a valid root path set and returns an updated status.
      *
      * @raises ProjectError.NotFound if the project file doesn't exist
@@ -94,10 +87,10 @@ class ProjectService(
      * @raises ProjectError.Corrupted if the project file is corrupted
      */
     context(_: Raise<ProjectError>)
-    fun discoverNewMods(
+    suspend fun discoverNewMods(
         respectGitignore: Boolean = true,
         additionalIgnores: List<String> = emptyList()
-    ): List<DiscoveredModDTO> {
+    ): Flow<DiscoveredModDTO> {
         val project = repository.load()
 
         val discoveredManifests = modDiscoveryService.discoverMods(

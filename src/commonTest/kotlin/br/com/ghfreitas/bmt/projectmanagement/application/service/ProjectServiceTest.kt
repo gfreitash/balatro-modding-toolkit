@@ -5,6 +5,8 @@ import br.com.ghfreitas.bmt.common.domain.valueobjects.Success
 import br.com.ghfreitas.bmt.projectmanagement.application.repository.BMTProjectRepository
 import br.com.ghfreitas.bmt.projectmanagement.domain.model.bmtproject.BMTProject
 import br.com.ghfreitas.bmt.projectmanagement.domain.service.ModIdentityService
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.test.runTest
 import okio.Path.Companion.toPath
 import okio.fakefilesystem.FakeFileSystem
 import kotlin.test.BeforeTest
@@ -57,7 +59,7 @@ class ProjectServiceTest {
     }
 
     @Test
-    fun discoverNewMods_finds_mod_at_root() {
+    fun discoverNewMods_finds_mod_at_root() = runTest {
         // Setup: project root is a mod (has manifest.json)
         val project = BMTProject(rootPath = "/work")
         either { repository.save(project) }
@@ -79,7 +81,7 @@ class ProjectServiceTest {
             """.trimIndent())
         }
 
-        val result = either { service.discoverNewMods() }
+        val result = either { service.discoverNewMods().toList() }
 
         assertTrue(result is Success)
         val newMods = result.value
