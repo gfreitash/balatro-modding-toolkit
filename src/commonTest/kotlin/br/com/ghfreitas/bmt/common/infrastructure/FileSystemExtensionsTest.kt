@@ -1,4 +1,4 @@
-package br.com.ghfreitas
+package br.com.ghfreitas.bmt.common.infrastructure
 
 import okio.FileSystem
 import okio.IOException
@@ -172,5 +172,61 @@ class UtilsTest {
 
         fs.workingDirectory = testDir
         assertEquals(fs.workingDirectory.toString(), with(fs) { FileSystem.cwd() }.toString())
+    }
+
+    @Test
+    fun atomicWrite_writes_content_to_file() {
+        val fs = FakeFileSystem()
+        val testFile = "/test/file.txt".toPath()
+        fs.createDirectories(testFile.parent!!)
+
+        val content = "Hello, World!\nThis is a test file."
+        with(fs) { testFile.atomicWrite(content) }
+
+        val readContent = fs.read(testFile) { readUtf8() }
+        assertEquals(content, readContent)
+    }
+
+    @Test
+    fun atomicWrite_overwrites_existing_file() {
+        val fs = FakeFileSystem()
+        val testFile = "/test/file.txt".toPath()
+        fs.createDirectories(testFile.parent!!)
+
+        val initialContent = "Initial content"
+        with(fs) { testFile.writeToFile(initialContent) }
+
+        val newContent = "New content that replaces the old"
+        with(fs) { testFile.atomicWrite(newContent) }
+
+        val readContent = fs.read(testFile) { readUtf8() }
+        assertEquals(newContent, readContent)
+    }
+
+    @Test
+    fun atomicWrite_handles_utf8_content() {
+        val fs = FakeFileSystem()
+        val testFile = "/test/utf8.txt".toPath()
+        fs.createDirectories(testFile.parent!!)
+
+        val utf8Content = "Héllo, Wørld! 🌍 测试 тест"
+        with(fs) { testFile.atomicWrite(utf8Content) }
+
+        val readContent = fs.read(testFile) { readUtf8() }
+        assertEquals(utf8Content, readContent)
+    }
+
+    @Test
+    fun atomicWrite_removes_temp_file_after_write() {
+        val fs = FakeFileSystem()
+        val testFile = "/test/file.txt".toPath()
+        val tempFile = "/test/file.txt.tmp".toPath()
+        fs.createDirectories(testFile.parent!!)
+
+        val content = "Some content"
+        with(fs) { testFile.atomicWrite(content) }
+
+        assertTrue(!fs.exists(tempFile), "Temp file should not exist after atomic write")
+        assertTrue(fs.exists(testFile), "Target file should exist after atomic write")
     }
 }

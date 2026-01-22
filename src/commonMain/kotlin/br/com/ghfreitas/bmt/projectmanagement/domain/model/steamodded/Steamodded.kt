@@ -1,11 +1,10 @@
-package br.com.ghfreitas.dto
+package br.com.ghfreitas.bmt.projectmanagement.domain.model.steamodded
 
-import arrow.core.EitherNel
-import arrow.core.right
-import br.com.ghfreitas.dto.validation.Validatable
-import br.com.ghfreitas.dto.validation.ValidationError
-import br.com.ghfreitas.dto.validation.gather
-import br.com.ghfreitas.dto.validation.validation
+import arrow.core.raise.context.RaiseAccumulate
+import arrow.core.raise.context.ensureOrAccumulate
+import br.com.ghfreitas.bmt.common.domain.valueobjects.Validatable
+import br.com.ghfreitas.bmt.common.domain.valueobjects.ValidationError
+import br.com.ghfreitas.bmt.projectmanagement.domain.model.ModAuthor
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonIgnoreUnknownKeys
@@ -18,7 +17,8 @@ value class ModId(val value: String) : Validatable {
         private val DISALLOWED_IDS = setOf("Steamodded", "Lovely", "Balatro")
     }
 
-    override fun validate(): EitherNel<ValidationError, Unit> = validation {
+    context(_: RaiseAccumulate<ValidationError>)
+    override fun constraints() {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("ModId cannot be blank") }
         ensureOrAccumulate(value !in DISALLOWED_IDS) {
             ValidationError("ModId '$value' is not allowed. Reserved IDs: ${DISALLOWED_IDS.joinToString(", ")}")
@@ -32,23 +32,17 @@ value class ModId(val value: String) : Validatable {
 @Serializable
 @JvmInline
 value class ModName(val value: String) : Validatable {
-    override fun validate(): EitherNel<ValidationError, Unit> = validation {
+    context(_: RaiseAccumulate<ValidationError>)
+    override fun constraints() {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("ModName cannot be blank") }
     }
 }
 
 @Serializable
 @JvmInline
-value class ModAuthor(val value: String) : Validatable {
-    override fun validate(): EitherNel<ValidationError, Unit> = validation {
-        ensureOrAccumulate(value.isNotBlank()) { ValidationError("ModAuthor cannot be blank") }
-    }
-}
-
-@Serializable
-@JvmInline
 value class ModDescription(val value: String) : Validatable {
-    override fun validate(): EitherNel<ValidationError, Unit> = validation {
+    context(_: RaiseAccumulate<ValidationError>)
+    override fun constraints() {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("ModDescription cannot be blank") }
     }
 }
@@ -56,7 +50,8 @@ value class ModDescription(val value: String) : Validatable {
 @Serializable
 @JvmInline
 value class ModPrefix(val value: String) : Validatable {
-    override fun validate(): EitherNel<ValidationError, Unit> = validation {
+    context(_: RaiseAccumulate<ValidationError>)
+    override fun constraints() {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("ModPrefix cannot be blank") }
         ensureOrAccumulate(value.matches("""^[a-zA-Z0-9_]+$""".toRegex())) {
             ValidationError("ModPrefix must contain only letters, numbers or _")
@@ -70,7 +65,8 @@ value class ModPrefix(val value: String) : Validatable {
 value class MainFile(
     val value: String
 ) : Validatable {
-    override fun validate(): EitherNel<ValidationError, Unit> = validation {
+    context(_: RaiseAccumulate<ValidationError>)
+    override fun constraints() {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("MainFile cannot be blank") }
         ensureOrAccumulate(value.endsWith(".lua")) { ValidationError("MainFile must have .lua extension") }
     }
@@ -82,7 +78,8 @@ value class MainFile(
 value class ConfigFile(
     val value: String
 ) : Validatable {
-    override fun validate(): EitherNel<ValidationError, Unit> = validation {
+    context(_: RaiseAccumulate<ValidationError>)
+    override fun constraints() {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("ConfigFile cannot be blank") }
         ensureOrAccumulate(value.endsWith(".lua")) { ValidationError("ConfigFile must have .lua extension") }
     }
@@ -91,13 +88,15 @@ value class ConfigFile(
 @Serializable
 @JvmInline
 value class Priority(val value: Int) : Validatable {
-    override fun validate(): EitherNel<ValidationError, Unit> = Unit.right()
+    context(_: RaiseAccumulate<ValidationError>)
+    override fun constraints() = Unit
 }
 
 @Serializable
 @JvmInline
 value class HexColor(val value: String) : Validatable {
-    override fun validate(): EitherNel<ValidationError, Unit> = validation {
+    context(_: RaiseAccumulate<ValidationError>)
+    override fun constraints() {
         ensureOrAccumulate(value.matches("""^[0-9A-Fa-f]{6}$|^[0-9A-Fa-f]{8}$""".toRegex())) {
             ValidationError("HexColor must be a valid hexadecimal color code (6 or 8 digits)")
         }
@@ -108,7 +107,8 @@ value class HexColor(val value: String) : Validatable {
 @SerialName("display_name")
 @JvmInline
 value class DisplayName(val value: String) : Validatable {
-    override fun validate(): EitherNel<ValidationError, Unit> = validation {
+    context(_: RaiseAccumulate<ValidationError>)
+    override fun constraints() {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("DisplayName cannot be blank") }
         ensureOrAccumulate(value.length <= 10) { ValidationError("DisplayName must be at most 10 characters") }
     }
@@ -117,7 +117,8 @@ value class DisplayName(val value: String) : Validatable {
 @Serializable
 @JvmInline
 value class ModVersion(val value: String) : Validatable {
-    override fun validate(): EitherNel<ValidationError, Unit> = validation {
+    context(_: RaiseAccumulate<ValidationError>)
+    override fun constraints() {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("ModVersion cannot be blank") }
         // Based on the Lua is_valid function, the version format is more flexible
         // Supports: major.minor.patch with optional rev (including ~ for beta)
@@ -136,7 +137,8 @@ value class ModVersion(val value: String) : Validatable {
 @Serializable
 @JvmInline
 value class DependencySpec(val value: String) : Validatable {
-    override fun validate(): EitherNel<ValidationError, Unit> = validation {
+    context(_: RaiseAccumulate<ValidationError>)
+    override fun constraints() {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("DependencySpec cannot be blank") }
         // More permissive validation since Lua does complex parsing
         // Supports: "ModName", "ModName (operator version)", "ModA | ModB | ModC"
@@ -150,7 +152,8 @@ value class DependencySpec(val value: String) : Validatable {
 @Serializable
 @JvmInline
 value class ConflictSpec(val value: String) : Validatable {
-    override fun validate(): EitherNel<ValidationError, Unit> = validation {
+    context(_: RaiseAccumulate<ValidationError>)
+    override fun constraints() {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("ConflictSpec cannot be blank") }
         ensureOrAccumulate(!value.contains("|")) { ValidationError("ConflictSpec cannot contain alternatives (|)") }
         // More permissive to match Lua parsing
@@ -163,7 +166,8 @@ value class ConflictSpec(val value: String) : Validatable {
 @Serializable
 @JvmInline
 value class ProvideSpec(val value: String) : Validatable {
-    override fun validate(): EitherNel<ValidationError, Unit> = validation {
+    context(_: RaiseAccumulate<ValidationError>)
+    override fun constraints(){
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("ProvideSpec cannot be blank") }
         // More permissive to match Lua parsing
         ensureOrAccumulate(
@@ -174,7 +178,7 @@ value class ProvideSpec(val value: String) : Validatable {
 
 @Serializable
 @JsonIgnoreUnknownKeys
-data class BalatroModMetadata(
+data class SteamoddedManifest(
     val id: ModId,
     val name: ModName,
     val author: List<ModAuthor>,
@@ -193,29 +197,30 @@ data class BalatroModMetadata(
     @SerialName("dump_loc") val dumpLoc: Boolean = false
 ) : Validatable {
 
-    override fun validate(): EitherNel<ValidationError, Unit> = validation {
+    context(_: RaiseAccumulate<ValidationError>)
+    override fun constraints() {
         // Validate all required fields
-        id.validate().gather()
-        name.validate().gather()
-        description.validate().gather()
-        prefix.validate().gather()
-        mainFile.validate().gather()
-        configFile.validate().gather()
-        priority.validate().gather()
-        badgeColour.validate().gather()
-        badgeTextColour.validate().gather()
+        id.constraints()
+        name.constraints()
+        description.constraints()
+        prefix.constraints()
+        mainFile.constraints()
+        configFile.constraints()
+        priority.constraints()
+        badgeColour.constraints()
+        badgeTextColour.constraints()
 
         // Validate author list
         ensureOrAccumulate(author.isNotEmpty()) { ValidationError("Must have at least one author") }
-        author.forEach { it.validate().gather() }
+        author.forEach { it.constraints() }
 
         // Validate optional fields
-        displayName?.validate()?.gather()
-        version.validate().gather()
+        displayName?.constraints()
+        version.constraints()
 
         // Validate lists
-        dependencies.forEach { it.validate().gather() }
-        conflicts.forEach { it.validate().gather() }
-        provides.forEach { it.validate().gather() }
+        dependencies.forEach { it.constraints() }
+        conflicts.forEach { it.constraints() }
+        provides.forEach { it.constraints() }
     }
 }

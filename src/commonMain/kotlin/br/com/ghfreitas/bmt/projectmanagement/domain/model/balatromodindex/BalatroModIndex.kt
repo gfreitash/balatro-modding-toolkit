@@ -1,15 +1,19 @@
-package br.com.ghfreitas.dto
+package br.com.ghfreitas.bmt.projectmanagement.domain.model.balatromodindex
 
-import arrow.core.EitherNel
-import br.com.ghfreitas.dto.validation.Validatable
-import br.com.ghfreitas.dto.validation.ValidationError
-import br.com.ghfreitas.dto.validation.gather
-import br.com.ghfreitas.dto.validation.validation
+import arrow.core.raise.context.RaiseAccumulate
+import arrow.core.raise.context.ensureOrAccumulate
+import br.com.ghfreitas.bmt.common.domain.valueobjects.Validatable
+import br.com.ghfreitas.bmt.common.domain.valueobjects.ValidationError
+import br.com.ghfreitas.bmt.projectmanagement.domain.model.FolderName
+import br.com.ghfreitas.bmt.projectmanagement.domain.model.ModAuthor
 import kotlin.jvm.JvmInline
+
 
 @JvmInline
 value class ModTitle(val value: String) : Validatable {
-    override fun validate(): EitherNel<ValidationError, Unit> = validation {
+
+    context(_: RaiseAccumulate<ValidationError>)
+    override fun constraints() {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("ModTitle cannot be blank") }
     }
 }
@@ -32,7 +36,8 @@ enum class ModCategory(val displayName: String) {
 
 @JvmInline
 value class ModCategories(val values: Set<ModCategory>) : Validatable {
-    override fun validate(): EitherNel<ValidationError, Unit> = validation {
+    context(_: RaiseAccumulate<ValidationError>)
+    override fun constraints() {
         ensureOrAccumulate(values.isNotEmpty()) {
             ValidationError("Must have at least one category")
         }
@@ -41,7 +46,8 @@ value class ModCategories(val values: Set<ModCategory>) : Validatable {
 
 @JvmInline
 value class RepoUrl(val value: String) : Validatable {
-    override fun validate(): EitherNel<ValidationError, Unit> = validation {
+    context(_: RaiseAccumulate<ValidationError>)
+    override fun constraints() {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("Repository URL cannot be blank") }
         ensureOrAccumulate(
             value.matches("""^https?://[\w.-]+(/.*)?$""".toRegex())
@@ -51,7 +57,8 @@ value class RepoUrl(val value: String) : Validatable {
 
 @JvmInline
 value class DownloadUrl(val value: String) : Validatable {
-    override fun validate(): EitherNel<ValidationError, Unit> = validation {
+    context(_: RaiseAccumulate<ValidationError>)
+    override fun constraints() {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("Download URL cannot be blank") }
         ensureOrAccumulate(
             value.matches("""^https?://[\w.-]+(/.*)?$""".toRegex())
@@ -60,35 +67,18 @@ value class DownloadUrl(val value: String) : Validatable {
 }
 
 @JvmInline
-value class FolderName(val value: String) : Validatable {
-    companion object {
-        private val FORBIDDEN_CHARS = setOf('<', '>', ':', '"', '/', '\\', '|', '?', '*')
-    }
-
-    override fun validate(): EitherNel<ValidationError, Unit> = validation {
-        ensureOrAccumulate(value.isNotBlank()) { ValidationError("FolderName cannot be blank") }
-        ensureOrAccumulate(value.length <= 100) { ValidationError("FolderName must be at most 100 characters") }
-        ensureOrAccumulate(
-            !value.any { it in FORBIDDEN_CHARS }
-        ) {
-            ValidationError("FolderName cannot contain characters: ${FORBIDDEN_CHARS.joinToString(" ")}")
-        }
-        ensureOrAccumulate(value.trim() == value) {
-            ValidationError("FolderName cannot start or end with whitespace")
-        }
-    }
-}
-
-@JvmInline
 value class IndexModVersion(val value: String) : Validatable {
-    override fun validate(): EitherNel<ValidationError, Unit> = validation {
+    context(_: RaiseAccumulate<ValidationError>)
+    override fun constraints() {
         ensureOrAccumulate(value.isNotBlank()) { ValidationError("Version cannot be blank") }
     }
 }
 
 @JvmInline
 value class LastUpdated(val value: ULong) : Validatable {
-    override fun validate(): EitherNel<ValidationError, Unit> = validation {}
+    context(_: RaiseAccumulate<ValidationError>)
+    override fun constraints() {
+    }
 }
 
 data class ModIndexMetadata(
@@ -106,18 +96,19 @@ data class ModIndexMetadata(
     val lastUpdated: LastUpdated? = null
 ) : Validatable {
 
-    override fun validate(): EitherNel<ValidationError, Unit> = validation {
+    context(_: RaiseAccumulate<ValidationError>)
+    override fun constraints() {
         // Validate all required fields
-        title.validate().gather()
-        categories.validate().gather()
-        author.validate().gather()
-        repo.validate().gather()
-        downloadURL.validate().gather()
-        version.validate().gather()
+        title.constraints()
+        categories.constraints()
+        author.constraints()
+        repo.constraints()
+        downloadURL.constraints()
+        version.constraints()
 
         // Validate optional fields
-        folderName?.validate()?.gather()
-        lastUpdated?.validate()?.gather()
+        folderName?.constraints()
+        lastUpdated?.constraints()
 
         // Schema rule: if fixedReleaseTagUpdates is true, then automaticVersionCheck must be true
         // and downloadURL must point to specific GitHub release asset
