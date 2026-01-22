@@ -1,4 +1,4 @@
-package br.com.ghfreitas
+package br.com.ghfreitas.bmt.projectmanagement.application.service
 
 import br.com.ghfreitas.bmt.common.domain.valueobjects.Invalid
 import br.com.ghfreitas.bmt.common.domain.valueobjects.Valid

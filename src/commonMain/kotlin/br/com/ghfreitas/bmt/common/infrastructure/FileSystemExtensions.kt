@@ -34,7 +34,9 @@ fun Path.readAsString(): String = filesystem.read(this) {
  * This method overwrites the file if it already exists.
  *
  * @param content The text content to be written to the file.
+ * @throws IOException if an error occurs while writing the file
  */
+@Throws(IOException::class)
 context(filesystem: FileSystem)
 fun Path.writeToFile(content: String) = filesystem.write(this) { writeUtf8(content) }
 
@@ -80,4 +82,20 @@ fun BufferedSource.readLines(): Sequence<String> = sequence {
     while (!exhausted()) {
         yield(readUtf8Line() ?: break)
     }
+}
+
+/**
+ * Atomically writes the given content to a file located at the specified path using the provided file system context.
+ * This method overwrites the file if it already exists.
+ *
+ * @param content The text content to be written to the file.
+ * @throws IOException if an error occurs while writing the file
+ */
+@Throws(IOException::class)
+context(filesystem: FileSystem)
+fun Path.atomicWrite(content: String) = with(filesystem) {
+    val path = this@atomicWrite
+    val tmp = path.parent?.div("${path.name}.tmp") ?: "${path.name}.tmp".toPath()
+    tmp.writeToFile(content)
+    atomicMove(tmp, path)
 }

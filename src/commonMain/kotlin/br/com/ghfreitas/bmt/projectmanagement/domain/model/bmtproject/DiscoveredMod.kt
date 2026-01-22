@@ -1,4 +1,4 @@
-package br.com.ghfreitas.bmt.projectmanagement.domain.model
+package br.com.ghfreitas.bmt.projectmanagement.domain.model.bmtproject
 
 import kotlinx.serialization.Serializable
 import kotlin.time.Clock

@@ -1,5 +1,9 @@
-package br.com.ghfreitas.bmt.projectmanagement.domain.model
+package br.com.ghfreitas.bmt.projectmanagement.domain.model.bmtproject
 
+import arrow.core.raise.context.Raise
+import arrow.core.raise.context.ensure
+import br.com.ghfreitas.bmt.projectmanagement.application.error.ProjectError
+import br.com.ghfreitas.bmt.projectmanagement.domain.model.bmtproject.DiscoveredMod
 import kotlinx.serialization.Serializable
 
 /**
@@ -32,10 +36,11 @@ data class BMTProject(
      *
      * @param mod The mod to add
      * @return A new BMTProject with the mod added
-     * @throws IllegalArgumentException if a mod already exists at the same path
+     * @raises ProjectError.ModAlreadyExists if a mod already exists at the same path
      */
+    context(_: Raise<ProjectError>)
     fun addDiscoveredMod(mod: DiscoveredMod): BMTProject {
-        require(!hasModAt(mod.manifestPath)) { "Mod already exists at ${mod.manifestPath}" }
+        ensure(!hasModAt(mod.manifestPath)) { ProjectError.ModAlreadyExists(mod.manifestPath) }
         return copy(discoveredMods = discoveredMods + mod)
     }
 

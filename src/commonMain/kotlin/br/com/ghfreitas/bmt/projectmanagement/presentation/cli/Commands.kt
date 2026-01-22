@@ -1,7 +1,10 @@
 package br.com.ghfreitas.bmt.projectmanagement.presentation.cli
 
+import arrow.core.raise.either
+import br.com.ghfreitas.bmt.common.domain.valueobjects.Failure
+import br.com.ghfreitas.bmt.common.domain.valueobjects.Success
+import br.com.ghfreitas.bmt.projectmanagement.application.error.ProjectError
 import br.com.ghfreitas.bmt.projectmanagement.application.model.ModRegistrationDecision
-import br.com.ghfreitas.bmt.projectmanagement.application.model.ProjectStatusDTO
 import br.com.ghfreitas.bmt.projectmanagement.application.repository.BMTProjectRepository
 import br.com.ghfreitas.bmt.projectmanagement.application.service.ModDiscoveryService
 import br.com.ghfreitas.bmt.projectmanagement.application.service.ProjectService
@@ -45,14 +48,22 @@ class InitCommand : CliktCommand(name = "init") {
                     echo("It was not possible to read the BMT project file. The file might be corrupted or this might be a transient failure")
                 }
                 true -> {
-                    val status = projectService.ensureRootPathSet()!!
-                    echo("BMT project already initialized in ${status.rootPath}")
-                    findAndRegisterMods(projectService, term, noGitignore, ignore)
+                    when (val result = either { projectService.ensureRootPathSet() }) {
+                        is Success -> {
+                            echo("BMT project already initialized in ${result.value.rootPath}")
+                            findAndRegisterMods(projectService, term, noGitignore, ignore)
+                        }
+                        is Failure -> handleError(result.value)
+                    }
                 }
                 false -> {
-                    val status = projectService.initialize()
-                    echo("Initialized BMT project in ${status.rootPath}")
-                    findAndRegisterMods(projectService, term, noGitignore, ignore)
+                    when (val result = either { projectService.initialize() }) {
+                        is Success -> {
+                            echo("Initialized BMT project in ${result.value.rootPath}")
+                            findAndRegisterMods(projectService, term, noGitignore, ignore)
+                        }
+                        is Failure -> handleError(result.value)
+                    }
                 }
             }
         }
@@ -101,30 +112,54 @@ private fun CliktCommand.findAndRegisterMods(
     noGitignore: Boolean,
     ignore: List<String>
 ) {
-    val newMods = projectService.discoverNewMods(
-        respectGitignore = !noGitignore,
-        additionalIgnores = ignore
-    )
-
-    if (newMods.isEmpty()) {
-        echo("No new mods found")
-        return
-    }
-
-    val decisions = newMods.map { mod ->
-        echo("Found mod: ${mod.name} at ${mod.path}")
-        val include = terminal.prompt(
-            "Include this mod in the project?",
-            choices = listOf("y", "N"),
-            default = "N"
-        ).let { (it ?: "n").lowercase() == "y" }
-
-        ModRegistrationDecision(
-            name = mod.name,
-            path = mod.path,
-            included = include
+    when (val result = either {
+        projectService.discoverNewMods(
+            respectGitignore = !noGitignore,
+            additionalIgnores = ignore
         )
-    }
+    }) {
+        is Failure -> {
+            handleError(result.value)
+            return
+        }
+        is Success -> {
+            val newMods = result.value
+            if (newMods.isEmpty()) {
+                echo("No new mods found")
+                return
+            }
 
-    projectService.registerDiscoveredMods(decisions)
+            val decisions = newMods.map { mod ->
+                echo("Found mod: ${mod.name} at ${mod.path}")
+                val include = terminal.prompt(
+                    "Include this mod in the project?",
+                    choices = listOf("y", "N"),
+                    default = "N"
+                ).let { (it ?: "n").lowercase() == "y" }
+
+                ModRegistrationDecision(
+                    name = mod.name,
+                    path = mod.path,
+                    included = include
+                )
+            }
+
+            when (val registerResult = either { projectService.registerDiscoveredMods(decisions) }) {
+                is Success -> echo("Mods registered successfully")
+                is Failure -> handleError(registerResult.value)
+            }
+        }
+    }
+}
+
+/**
+ * Handles project errors by displaying appropriate error messages to the user.
+ */
+private fun handleError(error: ProjectError) {
+    when (error) {
+        is ProjectError.NotFound -> error("Not in a BMT project. Run 'bmt-cli init' first.")
+        is ProjectError.Corrupted -> error("The project file is corrupted. Please fix or delete .bmt.json and try again.")
+        is ProjectError.IoError -> error("IO error: ${error.message}")
+        is ProjectError.ModAlreadyExists -> error("Mod already exists at ${error.path}")
+    }
 }

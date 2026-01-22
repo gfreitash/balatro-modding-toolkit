@@ -1,9 +1,11 @@
-package br.com.ghfreitas
+package br.com.ghfreitas.bmt.projectmanagement.domain.model.bmtproject
 
+import arrow.core.raise.either
+import br.com.ghfreitas.bmt.common.domain.valueobjects.Failure
+import br.com.ghfreitas.bmt.common.domain.valueobjects.Success
 import br.com.ghfreitas.bmt.common.infrastructure.writeToFile
+import br.com.ghfreitas.bmt.projectmanagement.application.error.ProjectError
 import br.com.ghfreitas.bmt.projectmanagement.application.repository.BMTProjectRepository
-import br.com.ghfreitas.bmt.projectmanagement.domain.model.BMTProject
-import br.com.ghfreitas.bmt.projectmanagement.domain.model.DiscoveredMod
 import okio.Path.Companion.toPath
 import okio.fakefilesystem.FakeFileSystem
 import kotlin.test.*
@@ -39,8 +41,9 @@ class BMTProjectTest {
             lastScanMilliseconds = 1234567890L
         )
 
-        repository.save(project)
+        val result = either { repository.save(project) }
 
+        assertTrue(result is Success)
         assertTrue(fs.exists(bmtFile))
         val content = fs.read(bmtFile) { readUtf8() }
         assertTrue(content.contains("\"rootPath\": \"$rootPath\""))
@@ -64,9 +67,10 @@ class BMTProjectTest {
         """.trimIndent()
         with(fs) { bmtFile.writeToFile(projectJson) }
 
-        val project = repository.load()
+        val result = either { repository.load() }
 
-        assertNotNull(project)
+        assertTrue(result is Success)
+        val project = result.value
         assertEquals("/project", project.rootPath)
         assertEquals(1, project.discoveredMods.size)
         assertEquals("test.mod", project.discoveredMods[0].name)
@@ -75,11 +79,21 @@ class BMTProjectTest {
     }
 
     @Test
-    fun load_returns_null_for_invalid_json() {
+    fun load_returns_corrupted_error_for_invalid_json() {
         with(fs) { bmtFile.writeToFile("{ invalid json }") }
-        val project = repository.load()
 
-        assertNull(project)
+        val result = either { repository.load() }
+
+        assertTrue(result is Failure)
+        assertEquals(ProjectError.Corrupted, result.value)
+    }
+
+    @Test
+    fun load_returns_not_found_error_when_file_missing() {
+        val result = either { repository.load() }
+
+        assertTrue(result is Failure)
+        assertEquals(ProjectError.NotFound, result.value)
     }
 
     @Test
@@ -117,14 +131,16 @@ class BMTProjectTest {
             included = true
         )
 
-        val updated = project.addDiscoveredMod(mod)
+        val result = either { project.addDiscoveredMod(mod) }
 
+        assertTrue(result is Success)
+        val updated = result.value
         assertEquals(1, updated.discoveredMods.size)
         assertEquals("test.mod", updated.discoveredMods[0].name)
     }
 
     @Test
-    fun addDiscoveredMod_throws_on_duplicate() {
+    fun addDiscoveredMod_returns_error_on_duplicate() {
         val mod = DiscoveredMod(
             name = "test.mod",
             manifestPath = "$rootPath/mods/test/manifest.json",
@@ -135,9 +151,11 @@ class BMTProjectTest {
             discoveredMods = listOf(mod)
         )
 
-        assertFailsWith<IllegalArgumentException> {
-            project.addDiscoveredMod(mod)
-        }
+        val result = either { project.addDiscoveredMod(mod) }
+
+        assertTrue(result is Failure)
+        assertTrue(result.value is ProjectError.ModAlreadyExists)
+        assertEquals("$rootPath/mods/test/manifest.json", (result.value as ProjectError.ModAlreadyExists).path)
     }
 
     @Test
@@ -148,25 +166,5 @@ class BMTProjectTest {
         val updated = project.markScanned(timestamp)
 
         assertEquals(timestamp, updated.lastScanMilliseconds)
-    }
-
-    @Test
-    fun exists_returns_false_when_file_does_not_exist() {
-        assertFalse(repository.exists()!!)
-    }
-
-    @Test
-    fun exists_returns_true_when_valid_file_exists() {
-        val project = BMTProject(rootPath = rootPath.toString())
-        repository.save(project)
-
-        assertTrue(repository.exists()!!)
-    }
-
-    @Test
-    fun exists_returns_null_when_file_is_corrupted() {
-        with(fs) { bmtFile.writeToFile("{ invalid json }") }
-
-        assertNull(repository.exists())
     }
 }

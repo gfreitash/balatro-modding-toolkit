@@ -40,5 +40,24 @@ inline fun <ValidationError, A> validating(
     block: RaiseAccumulate<ValidationError>.() -> A
 ): EitherNel<ValidationError, Unit> = either { accumulate(block) }
 
+/**
+ * Type alias for Either.Right.
+ * It's a semantic alternative to represent a successful validation result
+ */
 typealias Valid<B> = Either.Right<B>
+/**
+ * Type alias for Either.Left.
+ * It's a semantic alternative to represent a failed validation result
+ */
 typealias Invalid<A> = Either.Left<A>
+
+/**
+ * Type alias for Either.Right representing a success case.
+ * Mirrors the [Valid] pattern but for general results.
+ */
+typealias Success<B> = Either.Right<B>
+/**
+ * Type alias for Either.Left representing a failure case.
+ * Mirrors the [Invalid] pattern but for general results.
+ */
+typealias Failure<A> = Either.Left<A>
