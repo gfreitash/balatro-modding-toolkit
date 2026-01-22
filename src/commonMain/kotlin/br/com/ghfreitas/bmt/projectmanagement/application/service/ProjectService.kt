@@ -93,13 +93,13 @@ class ProjectService(
     ): Flow<DiscoveredModDTO> {
         val project = repository.load()
 
-        val discoveredManifests = modDiscoveryService.discoverMods(
+        val discoveredMods = modDiscoveryService.discoverMods(
             rootPath = project.rootPath.toPath(),
             respectGitignore = respectGitignore,
             additionalIgnores = additionalIgnores
         )
 
-        return discoveredManifests
+        return discoveredMods
             .filterNot { manifest -> project.hasModAt(manifest.path.toString()) }
             .map { manifest ->
                 val modName = modIdentityService.resolveModName(
