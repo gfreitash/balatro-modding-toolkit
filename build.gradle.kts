@@ -74,7 +74,9 @@ kotlin {
         sourceSets.all {
             languageSettings {
                 optIn("kotlin.time.ExperimentalTime")
+                optIn("kotlin.contracts.ExperimentalContracts")
                 optIn("kotlin.ExperimentalStdlibApi")
+                optIn("kotlin.experimental.ExperimentalTypeInference")
                 optIn("kotlin.experimental.ExperimentalNativeApi")
                 optIn("kotlinx.serialization.ExperimentalSerializationApi")
                 optIn("arrow.core.raise.ExperimentalRaiseAccumulateApi")
