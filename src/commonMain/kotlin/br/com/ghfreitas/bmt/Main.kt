@@ -1,3 +1,5 @@
+package br.com.ghfreitas.bmt
+
 import br.com.ghfreitas.bmt.projectmanagement.presentation.cli.Entrypoint
 import br.com.ghfreitas.bmt.projectmanagement.presentation.cli.FindManifestsCommand
 import br.com.ghfreitas.bmt.projectmanagement.presentation.cli.InitCommand

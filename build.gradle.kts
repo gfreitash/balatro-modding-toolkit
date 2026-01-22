@@ -35,7 +35,7 @@ kotlin {
         target.binaries {
             if (target.name.startsWith("linux")) {
                 executable {
-                    entryPoint = "main"
+                    entryPoint = "br.com.ghfreitas.bmt.main"
                     linkerOpts.add("-Wl,--as-needed")
                     linkerOpts.add("--allow-multiple-definition")
                 }
@@ -46,7 +46,7 @@ kotlin {
                 }
             } else {
                 executable {
-                    entryPoint = "main"
+                    entryPoint = "br.com.ghfreitas.bmt.main"
                 }
             }
         }
