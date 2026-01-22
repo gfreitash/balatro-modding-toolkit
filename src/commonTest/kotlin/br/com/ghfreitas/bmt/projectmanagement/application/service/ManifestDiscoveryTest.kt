@@ -3,6 +3,7 @@ package br.com.ghfreitas.bmt.projectmanagement.application.service
 import br.com.ghfreitas.bmt.common.domain.valueobjects.Invalid
 import br.com.ghfreitas.bmt.common.domain.valueobjects.Valid
 import br.com.ghfreitas.bmt.common.domain.valueobjects.validating
+import br.com.ghfreitas.bmt.common.infrastructure.fromSegments
 import br.com.ghfreitas.bmt.common.infrastructure.writeToFile
 import br.com.ghfreitas.bmt.projectmanagement.domain.model.ModAuthor
 import br.com.ghfreitas.bmt.projectmanagement.domain.model.steamodded.*
@@ -10,6 +11,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import okio.FileSystem
+import okio.Path
 import okio.Path.Companion.toPath
 import okio.fakefilesystem.FakeFileSystem
 import kotlin.test.*
@@ -242,7 +244,7 @@ class ManifestDiscoveryTest {
         assertEquals(1, discovered.size)
         assertNull(discovered[0].metadata)
         assertTrue(discovered[0].hasLovelyPatches)
-        assertEquals(root / "lovely_mod", discovered[0].path)
+        assertEquals(root / "lovely_mod", Path.fromSegments(discovered[0].path))
     }
 
     @Test
@@ -275,7 +277,7 @@ class ManifestDiscoveryTest {
         assertNotNull(discovered[0].metadata)
         assertEquals("hybrid_mod", discovered[0].metadata?.id?.value)
         assertTrue(discovered[0].hasLovelyPatches)
-        assertEquals(hybridModPath, discovered[0].path)
+        assertEquals(hybridModPath, Path.fromSegments(discovered[0].path))
     }
 
     @Test
@@ -321,7 +323,7 @@ class ManifestDiscoveryTest {
         val discovered = modDiscoveryService.discoverMods(root).toList()
 
         assertEquals(1, discovered.size)
-        assertEquals(root / "normal_mod", discovered[0].path)
+        assertEquals(root / "normal_mod", Path.fromSegments(discovered[0].path))
         assertTrue(discovered[0].hasLovelyPatches)
 
         // Verify that disabling gitignore includes both
@@ -378,17 +380,17 @@ class ManifestDiscoveryTest {
 
         assertEquals(3, discovered.size)
 
-        val manifestOnly = discovered.find { it.path == root / "manifest_only" }
+        val manifestOnly = discovered.find { Path.fromSegments(it.path) == root / "manifest_only" }
         assertNotNull(manifestOnly)
         assertEquals("manifest_only", manifestOnly.metadata?.id?.value)
         assertFalse(manifestOnly.hasLovelyPatches)
 
-        val lovelyOnly = discovered.find { it.path == root / "lovely_only" }
+        val lovelyOnly = discovered.find { Path.fromSegments(it.path) == root / "lovely_only" }
         assertNotNull(lovelyOnly)
         assertNull(lovelyOnly.metadata)
         assertTrue(lovelyOnly.hasLovelyPatches)
 
-        val hybrid = discovered.find { it.path == root / "hybrid" }
+        val hybrid = discovered.find { Path.fromSegments(it.path) == root / "hybrid" }
         assertNotNull(hybrid)
         assertEquals("hybrid", hybrid.metadata?.id?.value)
         assertTrue(hybrid.hasLovelyPatches)
@@ -400,5 +402,54 @@ class ManifestDiscoveryTest {
                 "DiscoveredManifest cannot have both null metadata and no lovely patches"
             )
         }
+    }
+
+    @Test
+    fun discoverMods_absolute_path_produces_segments_starting_with_empty_string() = runTest {
+        val root = "/project".toPath()
+        fs.createDirectories(root)
+
+        val modPath = root / "my_mod" / "manifest.json"
+        fs.createDirectories(modPath.parent!!)
+        with(fs) {
+            modPath.writeToFile(Json.encodeToString(validMetadata().copy(id = ModId("my_mod"))))
+        }
+
+        val discovered = modDiscoveryService.discoverMods(root).toList()
+
+        assertEquals(1, discovered.size)
+        val mod = discovered.first()
+
+        // Absolute paths should have an empty string as the first segment
+        assertTrue(mod.path.first().isEmpty(), "Absolute path segments should start with empty string for root")
+        assertEquals(listOf("", "project", "my_mod"), mod.path)
+
+        // Verify the path can be reconstructed correctly
+        assertEquals(root / "my_mod", Path.fromSegments(mod.path))
+    }
+
+    @Test
+    fun discoverMods_relative_path_produces_segments_without_empty_prefix() = runTest {
+        // Use a relative path as root (simulating a relative working directory)
+        val root = "project".toPath()
+        fs.createDirectories(root)
+
+        val modPath = root / "my_mod" / "manifest.json"
+        fs.createDirectories(modPath.parent!!)
+        with(fs) {
+            modPath.writeToFile(Json.encodeToString(validMetadata().copy(id = ModId("my_mod"))))
+        }
+
+        val discovered = modDiscoveryService.discoverMods(root).toList()
+
+        assertEquals(1, discovered.size)
+        val mod = discovered.first()
+
+        // Relative paths should NOT have an empty string as the first segment
+        assertTrue(mod.path.first().isNotEmpty(), "Relative path segments should not start with empty string")
+        assertEquals(listOf("project", "my_mod"), mod.path)
+
+        // Verify the path can be reconstructed correctly
+        assertEquals(root / "my_mod", Path.fromSegments(mod.path))
     }
 }

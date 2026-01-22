@@ -2,11 +2,14 @@ package br.com.ghfreitas.bmt.projectmanagement.application.service
 
 import br.com.ghfreitas.bmt.common.domain.valueobjects.Invalid
 import br.com.ghfreitas.bmt.common.domain.valueobjects.Valid
+import br.com.ghfreitas.bmt.common.domain.valueobjects.attempt
 import br.com.ghfreitas.bmt.common.domain.valueobjects.validating
 import br.com.ghfreitas.bmt.common.infrastructure.FileSystemEntry
 import br.com.ghfreitas.bmt.common.infrastructure.GitIgnoreScanner
 import br.com.ghfreitas.bmt.common.infrastructure.readAsString
-import br.com.ghfreitas.bmt.projectmanagement.application.model.DiscoveredModFolder
+import br.com.ghfreitas.bmt.common.infrastructure.toSegments
+import br.com.ghfreitas.bmt.projectmanagement.domain.model.FolderName
+import br.com.ghfreitas.bmt.projectmanagement.domain.model.bmtproject.DiscoveredMod
 import br.com.ghfreitas.bmt.projectmanagement.domain.model.steamodded.SteamoddedManifest
 import co.touchlab.kermit.Logger
 import co.touchlab.kermit.Severity
@@ -33,7 +36,8 @@ class ModDiscoveryService(
 ) {
     private fun FileSystemEntry.isJsonFile(): Boolean = !this.isDirectory && this.path.name.endsWith(".json")
     private fun FileSystemEntry.isLovelyFolder(): Boolean = this.isDirectory && this.path.name.lowercase() == "lovely"
-    private fun FileSystemEntry.isLovelyTomlFile(): Boolean = !this.isDirectory && this.path.name.lowercase() == "lovely.toml"
+    private fun FileSystemEntry.isLovelyTomlFile(): Boolean =
+        !this.isDirectory && this.path.name.lowercase() == "lovely.toml"
 
     /**
      * Discovers all valid Balatro mod folders in a given directory recursively.
@@ -57,7 +61,7 @@ class ModDiscoveryService(
         rootPath: Path,
         respectGitignore: Boolean = true,
         additionalIgnores: List<String> = emptyList()
-    ): Flow<DiscoveredModFolder> {
+    ): Flow<DiscoveredMod> {
         val baseIgnorePatterns = listOf(".git/", ".bmt.json")
         val allPatterns = baseIgnorePatterns + additionalIgnores.toList()
 
@@ -71,7 +75,7 @@ class ModDiscoveryService(
         return discoverModsWithParser(parser)
     }
 
-    private fun discoverModsWithParser(parser: GitIgnoreScanner): Flow<DiscoveredModFolder> = flow {
+    private fun discoverModsWithParser(parser: GitIgnoreScanner): Flow<DiscoveredMod> = flow {
         // Map to accumulate files for the directory currently being scanned
         val currentFolderEntries = mutableListOf<FileSystemEntry>()
         var lastParent: Path? = null
@@ -101,17 +105,31 @@ class ModDiscoveryService(
         }
     }
 
-    private fun emitFolderIfValid(modPath: Path, entries: List<FileSystemEntry>): DiscoveredModFolder? {
+    private fun emitFolderIfValid(modPath: Path, entries: List<FileSystemEntry>): DiscoveredMod? {
         val manifest = entries
-            .filter { it.isJsonFile()}
+            .filter { it.isJsonFile() }
             .firstNotNullOfOrNull { tryParseAsSteamoddedManifest(it.path) }
 
         val hasLovely =
             entries.any { it.isLovelyFolder() || it.isLovelyTomlFile() }
 
-        return if (manifest != null || hasLovely) {
-            DiscoveredModFolder(modPath, manifest, hasLovely)
-        } else null
+        val modName = attempt {
+            DiscoveredMod.resolveModName(FolderName(modPath.name), manifest)
+        }.getOrNull() ?: return null
+
+        val result = validating {
+            DiscoveredMod.create(
+                name = modName,
+                path = modPath.toSegments(),
+                metadata = manifest,
+                hasLovelyPatches = hasLovely
+            )
+        }
+
+        return when (result) {
+            is Valid -> result.value
+            is Invalid -> null
+        }
     }
 
     /**

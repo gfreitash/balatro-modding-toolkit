@@ -99,3 +99,13 @@ fun Path.atomicWrite(content: String) = with(filesystem) {
     tmp.writeToFile(content)
     atomicMove(tmp, path)
 }
+
+/**
+ * Creates a Path instance by joining a list of path segments using the directory separator.
+ *
+ * @param segments The list of strings representing the path segments to be joined.
+ * @return A Path instance created from the joined segments.
+ */
+fun Path.Companion.fromSegments(segments: List<String>) = segments.joinToString(Path.DIRECTORY_SEPARATOR).toPath()
+
+fun Path.toSegments(): List<String> = toString().split(Path.DIRECTORY_SEPARATOR)

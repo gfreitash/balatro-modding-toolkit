@@ -6,19 +6,14 @@ import br.com.ghfreitas.bmt.common.domain.valueobjects.Failure
 import br.com.ghfreitas.bmt.common.domain.valueobjects.Success
 import br.com.ghfreitas.bmt.common.infrastructure.cwd
 import br.com.ghfreitas.bmt.projectmanagement.application.error.ProjectError
-import br.com.ghfreitas.bmt.projectmanagement.application.model.DiscoveredModDTO
-import br.com.ghfreitas.bmt.projectmanagement.application.model.ModRegistrationDecision
 import br.com.ghfreitas.bmt.projectmanagement.application.model.ProjectStatusDTO
 import br.com.ghfreitas.bmt.projectmanagement.application.repository.BMTProjectRepository
 import br.com.ghfreitas.bmt.projectmanagement.domain.model.bmtproject.BMTProject
-import br.com.ghfreitas.bmt.projectmanagement.domain.model.bmtproject.DiscoveredMod
-import br.com.ghfreitas.bmt.projectmanagement.domain.service.ModIdentityService
-import kotlinx.coroutines.flow.Flow
+import br.com.ghfreitas.bmt.projectmanagement.domain.model.bmtproject.LastScannedAt
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNot
-import kotlinx.coroutines.flow.map
 import okio.FileSystem
 import okio.Path.Companion.toPath
-import kotlin.time.Clock
 
 /**
  * Application service for project-level operations.
@@ -30,7 +25,6 @@ class ProjectService(
     private val fileSystem: FileSystem,
     private val repository: BMTProjectRepository,
     private val modDiscoveryService: ModDiscoveryService,
-    private val modIdentityService: ModIdentityService
 ) {
 
     /**
@@ -89,8 +83,9 @@ class ProjectService(
     context(_: Raise<ProjectError>)
     suspend fun discoverNewMods(
         respectGitignore: Boolean = true,
-        additionalIgnores: List<String> = emptyList()
-    ): Flow<DiscoveredModDTO> {
+        additionalIgnores: List<String> = emptyList(),
+        onModFound: (modName: String, path: String) -> Boolean
+    ) {
         val project = repository.load()
 
         val discoveredMods = modDiscoveryService.discoverMods(
@@ -99,49 +94,21 @@ class ProjectService(
             additionalIgnores = additionalIgnores
         )
 
-        return discoveredMods
-            .filterNot { manifest -> project.hasModAt(manifest.path.toString()) }
-            .map { manifest ->
-                val modName = modIdentityService.resolveModName(
-                    parentFolderName = manifest.path.name,
-                    metadata = manifest.metadata
-                )
-                DiscoveredModDTO(
-                    name = modName,
-                    path = manifest.path.toString(),
-                    hasManifest = manifest.metadata != null,
-                    hasLovelyPatches = manifest.hasLovelyPatches
-                )
+        discoveredMods
+            .filterNot { manifest -> project.discoveredMods.contains(manifest) }
+            .filter {
+                onModFound(it.name, it.path.toString())
+            }.collect {
+                project.discoveredMods.add(it)
             }
+
+        repository.save(project.apply { lastScannedAt = LastScannedAt.now()})
     }
 
-    /**
-     * Registers the chosen mods into the project.
-     *
-     * @raises ProjectError.NotFound if the project file doesn't exist
-     * @raises ProjectError.Corrupted if the project file is corrupted
-     * @raises ProjectError.ModAlreadyExists if a mod already exists at a given path
-     * @raises ProjectError.IoError if the project file cannot be saved
-     */
-    context(_: Raise<ProjectError>)
-    fun registerDiscoveredMods(decisions: List<ModRegistrationDecision>) {
-        var project = repository.load()
-
-        decisions.forEach { decision ->
-            val discoveredMod = DiscoveredMod(
-                name = decision.name,
-                manifestPath = decision.path,
-                included = decision.included
-            )
-            project = project.addDiscoveredMod(discoveredMod)
-        }
-
-        repository.save(project.markScanned(Clock.System.now().toEpochMilliseconds()))
-    }
 
     private fun BMTProject.toStatusDTO() = ProjectStatusDTO(
         rootPath = rootPath,
         modCount = discoveredMods.size,
-        lastScanTimestamp = lastScanMilliseconds
+        lastScanTimestamp = lastScannedAt?.value
     )
 }

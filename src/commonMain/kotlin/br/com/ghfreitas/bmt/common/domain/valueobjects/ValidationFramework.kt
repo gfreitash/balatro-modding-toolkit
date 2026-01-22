@@ -8,6 +8,7 @@ import arrow.core.raise.Raise
 import arrow.core.raise.RaiseAccumulate
 import arrow.core.raise.accumulate
 import arrow.core.raise.either
+import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
 import kotlin.jvm.JvmInline
 
@@ -39,7 +40,7 @@ interface Validatable {
  */
 inline fun <ValidationError, A> validating(
     block: RaiseAccumulate<ValidationError>.() -> A
-): EitherNel<ValidationError, Unit> = either { accumulate(block) }
+): EitherNel<ValidationError, A> = either { accumulate(block) }
 
 /**
  * Type alias for Either.Right.
@@ -92,7 +93,7 @@ inline fun <Error, A> attempt(
  *
  * @return true if the instance is of type [Failure], indicating a failure state; false if the instance is of type [Success], indicating a success state.
  */
-fun <A,B> Outcome<A,B>.isFailure(): Boolean {
+fun <A, B> Outcome<A, B>.isFailure(): Boolean {
     contract {
         returns(true) implies (this@isFailure is Left)
         returns(false) implies (this@isFailure is Right)
@@ -107,10 +108,21 @@ fun <A,B> Outcome<A,B>.isFailure(): Boolean {
  * @return true if the instance is of type [Success], indicating a success state; false if the instance is of type [Failure], indicating a failure state.
  */
 @Suppress("UNUSED_PARAMETER")
-fun <A,B> Outcome<A,B>.isSuccess(): Boolean {
+fun <A, B> Outcome<A, B>.isSuccess(): Boolean {
     contract {
         returns(true) implies (this@isSuccess is Right)
         returns(false) implies (this@isSuccess is Left)
     }
     return this@isSuccess is Right<B>
+}
+
+inline fun <A, B, C> Outcome<A, B>.resolve(ifFailure: (failure: A) -> C, ifSuccess: (success: B) -> C): C {
+    contract {
+        callsInPlace(ifFailure, InvocationKind.AT_MOST_ONCE)
+        callsInPlace(ifSuccess, InvocationKind.AT_MOST_ONCE)
+    }
+    return when (this) {
+        is Success -> ifSuccess(value)
+        is Failure -> ifFailure(value)
+    }
 }

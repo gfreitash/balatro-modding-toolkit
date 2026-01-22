@@ -1,15 +1,11 @@
 package br.com.ghfreitas.bmt.projectmanagement.presentation.cli
 
-import br.com.ghfreitas.bmt.common.domain.valueobjects.Failure
-import br.com.ghfreitas.bmt.common.domain.valueobjects.Success
 import br.com.ghfreitas.bmt.common.domain.valueobjects.attempt
 import br.com.ghfreitas.bmt.common.domain.valueobjects.isFailure
 import br.com.ghfreitas.bmt.projectmanagement.application.error.ProjectError
-import br.com.ghfreitas.bmt.projectmanagement.application.model.ModRegistrationDecision
 import br.com.ghfreitas.bmt.projectmanagement.application.repository.BMTProjectRepository
 import br.com.ghfreitas.bmt.projectmanagement.application.service.ModDiscoveryService
 import br.com.ghfreitas.bmt.projectmanagement.application.service.ProjectService
-import br.com.ghfreitas.bmt.projectmanagement.domain.service.ModIdentityService
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.terminal
@@ -104,7 +100,6 @@ private fun createProjectService(fileSystem: FileSystem): ProjectService {
         fileSystem = fileSystem,
         repository = BMTProjectRepository(fileSystem),
         modDiscoveryService = ModDiscoveryService(fileSystem),
-        modIdentityService = ModIdentityService()
     )
 }
 
@@ -117,50 +112,29 @@ private fun CliktCommand.findAndRegisterMods(
     noGitignore: Boolean,
     ignore: List<String>
 ) = runBlocking {
-    val decisions = mutableListOf<ModRegistrationDecision>()
-
-    // Use attempt to handle potential Raise/Either errors from projectService
-    val flowResult = attempt {
+    val result = attempt {
         projectService.discoverNewMods(
             respectGitignore = !noGitignore,
-            additionalIgnores = ignore
+            additionalIgnores = ignore,
+            onModFound = { modName, path ->
+                echo("Found mod: \"$modName\" at \"$path\"")
+
+                terminal.prompt(
+                    "Include this mod in the project?",
+                    choices = listOf("y", "N"),
+                    default = "N"
+                ).let { (it ?: "n").lowercase() == "y" }
+            }
         )
     }
 
-    if (flowResult.isFailure()) {
-        handleError(flowResult.value)
+    if (result.isFailure()) {
+        handleError(result.value)
         return@runBlocking
     }
 
-    // Collect the flow as it emits new mods
-    flowResult.value.collect { mod ->
-        echo("Found mod: ${mod.name} at ${mod.path}")
+    echo("Mods registered successfully")
 
-        val include = terminal.prompt(
-            "Include this mod in the project?",
-            choices = listOf("y", "N"),
-            default = "N"
-        ).let { (it ?: "n").lowercase() == "y" }
-
-        decisions.add(
-            ModRegistrationDecision(
-                name = mod.name,
-                path = mod.path,
-                included = include
-            )
-        )
-    }
-
-    if (decisions.isEmpty()) {
-        echo("No new mods found")
-        return@runBlocking
-    }
-
-    // Register all collected decisions at once
-    when (val registerResult = attempt { projectService.registerDiscoveredMods(decisions) }) {
-        is Success -> echo("Mods registered successfully")
-        is Failure -> handleError(registerResult.value)
-    }
 }
 
 /**

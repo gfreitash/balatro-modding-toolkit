@@ -4,8 +4,6 @@ import arrow.core.raise.either
 import br.com.ghfreitas.bmt.common.domain.valueobjects.Success
 import br.com.ghfreitas.bmt.projectmanagement.application.repository.BMTProjectRepository
 import br.com.ghfreitas.bmt.projectmanagement.domain.model.bmtproject.BMTProject
-import br.com.ghfreitas.bmt.projectmanagement.domain.service.ModIdentityService
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import okio.Path.Companion.toPath
 import okio.fakefilesystem.FakeFileSystem
@@ -29,8 +27,7 @@ class ProjectServiceTest {
 
         repository = BMTProjectRepository(fs)
         val modDiscoveryService = ModDiscoveryService(fs)
-        val modIdentityService = ModIdentityService()
-        service = ProjectService(fs, repository, modDiscoveryService, modIdentityService)
+        service = ProjectService(fs, repository, modDiscoveryService)
     }
 
     @Test
@@ -81,12 +78,25 @@ class ProjectServiceTest {
             """.trimIndent())
         }
 
-        val result = either { service.discoverNewMods().toList() }
+        val foundMods = mutableListOf<Pair<String, String>>()
+        val result = either {
+            service.discoverNewMods { modName, path ->
+                foundMods.add(modName to path)
+                true // Accept all mods
+            }
+        }
 
         assertTrue(result is Success)
-        val newMods = result.value
-        assertEquals(1, newMods.size)
-        assertEquals("root_mod", newMods[0].name)
-        assertEquals("/work", newMods[0].path)
+
+        // Verify via callback
+        assertEquals(1, foundMods.size)
+        assertEquals("root_mod", foundMods[0].first)
+
+        // Verify mods are persisted in repository
+        val loadResult = either { repository.load() }
+        assertTrue(loadResult is Success)
+        val loadedProject = loadResult.value
+        assertEquals(1, loadedProject.discoveredMods.size)
+        assertEquals("root_mod", loadedProject.discoveredMods.first().name)
     }
 }
